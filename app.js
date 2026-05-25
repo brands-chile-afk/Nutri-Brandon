@@ -50,48 +50,30 @@ let state = {
   inbodyHistory: [] // Lista de InBody objects
 };
 
-// Generar Datos de Inicio Premium (Mock Data) si el usuario es nuevo
+// Generar Datos de Inicio Premium con tus datos reales del CSV de InBody
 function getMockInitialData() {
   const todayStr = getFormattedDateString(new Date());
   
-  // Historial de pesos diarios simulados (últimos 7 días)
-  const weightMock = [];
-  const startWeight = 78.5;
-  for (let i = 7; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = getFormattedDateString(d);
-    // Peso con ligera fluctuación a la baja
-    const w = parseFloat((startWeight - (7 - i) * 0.2 + (Math.random() * 0.3 - 0.15)).toFixed(1));
-    weightMock.push({ date: dateStr, weight: w });
-  }
+  // Tu historial de pesos mensuales reales
+  const weightMock = [
+    { date: "2025-11-22", weight: 99.2 },
+    { date: "2025-12-20", weight: 96.0 },
+    { date: "2026-01-18", weight: 95.5 },
+    { date: "2026-02-14", weight: 92.5 },
+    { date: "2026-03-14", weight: 91.9 },
+    { date: "2026-04-18", weight: 91.5 },
+    { date: "2026-05-16", weight: 90.5 }
+  ];
 
-  // Historial de InBody (últimos 3 meses)
+  // Tu historial de InBody real de 7 meses
   const inbodyMock = [
-    {
-      date: "2026-03-01",
-      weight: 79.8,
-      muscleMass: 33.2,
-      bodyFatMass: 18.5,
-      bodyFatPct: 23.2,
-      visceralFat: 8
-    },
-    {
-      date: "2026-04-01",
-      weight: 78.5,
-      muscleMass: 33.9,
-      bodyFatMass: 16.8,
-      bodyFatPct: 21.4,
-      visceralFat: 7
-    },
-    {
-      date: "2026-05-01",
-      weight: 77.2,
-      muscleMass: 34.6,
-      bodyFatMass: 14.8,
-      bodyFatPct: 19.2,
-      visceralFat: 6
-    }
+    { date: "2025-11-22", weight: 99.2, muscleMass: 44.0, bodyFatMass: 22.9, bodyFatPct: 23.1, visceralFat: 9 },
+    { date: "2025-12-20", weight: 96.0, muscleMass: 42.8, bodyFatMass: 21.9, bodyFatPct: 22.8, visceralFat: 8 },
+    { date: "2026-01-18", weight: 95.5, muscleMass: 44.0, bodyFatMass: 19.6, bodyFatPct: 20.5, visceralFat: 8 },
+    { date: "2026-02-14", weight: 92.5, muscleMass: 43.3, bodyFatMass: 17.5, bodyFatPct: 18.9, visceralFat: 7 },
+    { date: "2026-03-14", weight: 91.9, muscleMass: 42.7, bodyFatMass: 18.0, bodyFatPct: 19.6, visceralFat: 7 },
+    { date: "2026-04-18", weight: 91.5, muscleMass: 43.1, bodyFatMass: 16.7, bodyFatPct: 18.2, visceralFat: 7 },
+    { date: "2026-05-16", weight: 90.5, muscleMass: 42.3, bodyFatMass: 17.2, bodyFatPct: 19.0, visceralFat: 7 }
   ];
 
   // Comidas simuladas para el día de hoy
@@ -136,9 +118,34 @@ function initDatabase() {
     if (cachedWeight) state.weightHistory = JSON.parse(cachedWeight);
     if (cachedInBody) state.inbodyHistory = JSON.parse(cachedInBody);
   } else {
-    // Cargar datos Mock de demostración inicial
-    console.log("Inicializando NutriLife con datos de demostración...");
+    // Cargar datos reales como iniciales
+    console.log("Inicializando NutriLife con tus datos reales de InBody...");
     state = getMockInitialData();
+    saveStateToLocalStorage();
+  }
+
+  // Importación/Migración forzada de datos reales del CSV por si ya existía almacenamiento local previo
+  const hasImportedCsv = localStorage.getItem("nutrilife_csv_imported_v2");
+  if (!hasImportedCsv) {
+    state.weightHistory = [
+      { date: "2025-11-22", weight: 99.2 },
+      { date: "2025-12-20", weight: 96.0 },
+      { date: "2026-01-18", weight: 95.5 },
+      { date: "2026-02-14", weight: 92.5 },
+      { date: "2026-03-14", weight: 91.9 },
+      { date: "2026-04-18", weight: 91.5 },
+      { date: "2026-05-16", weight: 90.5 }
+    ];
+    state.inbodyHistory = [
+      { date: "2025-11-22", weight: 99.2, muscleMass: 44.0, bodyFatMass: 22.9, bodyFatPct: 23.1, visceralFat: 9 },
+      { date: "2025-12-20", weight: 96.0, muscleMass: 42.8, bodyFatMass: 21.9, bodyFatPct: 22.8, visceralFat: 8 },
+      { date: "2026-01-18", weight: 95.5, muscleMass: 44.0, bodyFatMass: 19.6, bodyFatPct: 20.5, visceralFat: 8 },
+      { date: "2026-02-14", weight: 92.5, muscleMass: 43.3, bodyFatMass: 17.5, bodyFatPct: 18.9, visceralFat: 7 },
+      { date: "2026-03-14", weight: 91.9, muscleMass: 42.7, bodyFatMass: 18.0, bodyFatPct: 19.6, visceralFat: 7 },
+      { date: "2026-04-18", weight: 91.5, muscleMass: 43.1, bodyFatMass: 16.7, bodyFatPct: 18.2, visceralFat: 7 },
+      { date: "2026-05-16", weight: 90.5, muscleMass: 42.3, bodyFatMass: 17.2, bodyFatPct: 19.0, visceralFat: 7 }
+    ];
+    localStorage.setItem("nutrilife_csv_imported_v2", "true");
     saveStateToLocalStorage();
   }
   
