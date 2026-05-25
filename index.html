@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NutriLife - Dashboard Nutricional Inteligente</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="NutriLife - Tu aplicación de nutrición interactiva con calculadora inteligente de macros, registro de comidas por voz con Gemini e historial mensual InBody.">
+  <meta name="theme-color" content="#8b5cf6">
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3059/3059518.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Google Fonts - Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN for visual premium graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons CDN for sleek modern icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="light-mode">
+  
+  <!-- "Oye Google" Voice Quick-Add Loader Overlay -->
+  <div id="quickAddOverlay" class="quick-add-overlay hidden">
+    <div class="quick-add-loader-card">
+      <div class="gemini-assistant-logo">
+        <i data-lucide="sparkles" class="sparkles-icon"></i>
+      </div>
+      <h2 id="quickAddTitle">Registrando comida por voz...</h2>
+      <p id="quickAddStatus">El Asistente de Google ha enviado tu dictado.</p>
+      
+      <div class="transcription-preview">
+        <span class="quote-mark">“</span>
+        <span id="quickAddText">...</span>
+        <span class="quote-mark">”</span>
+      </div>
+      
+      <!-- Sonic wave pulsing visualization -->
+      <div class="shimmer-bar">
+        <div class="shimmer-progress"></div>
+      </div>
+      
+      <!-- Success report card (shows after Gemini parsing) -->
+      <div id="quickAddSuccessCard" class="quick-add-success-card hidden">
+        <div class="success-icon-badge">
+          <i data-lucide="check"></i>
+        </div>
+        <h3>¡Comida Registrada con Éxito!</h3>
+        <div id="quickAddDetails" class="success-details-list">
+          <!-- Populated by JS -->
+        </div>
+        <button id="quickAddCloseBtn" class="btn btn-primary">Ir al Dashboard</button>
+      </div>
+
+      <div id="quickAddErrorCard" class="quick-add-error-card hidden">
+        <div class="error-icon-badge">
+          <i data-lucide="alert-circle"></i>
+        </div>
+        <h3>No se pudo procesar la comida</h3>
+        <p id="quickAddErrorMsg">Verifica tu clave de API de Gemini en Ajustes.</p>
+        <button id="quickAddErrorCloseBtn" class="btn btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation for Tablet/Desktop -->
+    <aside class="sidebar-nav">
+      <div class="brand">
+        <div class="brand-logo">
+          <i data-lucide="apple"></i>
+        </div>
+        <span class="brand-name">NutriLife</span>
+      </div>
+      
+      <nav class="nav-menu">
+        <button class="nav-link active" data-target="dashboard-view" id="nav-btn-dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-link" data-target="meals-view" id="nav-btn-meals">
+          <i data-lucide="utensils"></i>
+          <span>Comidas</span>
+        </button>
+        <button class="nav-link" data-target="inbody-view" id="nav-btn-inbody">
+          <i data-lucide="activity"></i>
+          <span>InBody y Peso</span>
+        </button>
+        <button class="nav-link" data-target="calc-view" id="nav-btn-calc">
+          <i data-lucide="calculator"></i>
+          <span>Calculadora</span>
+        </button>
+        <button class="nav-link" data-target="settings-view" id="nav-btn-settings">
+          <i data-lucide="settings"></i>
+          <span>Ajustes</span>
+        </button>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <button id="themeToggleBtnSide" class="theme-toggle-btn">
+          <i data-lucide="sun" class="sun-icon"></i>
+          <i data-lucide="moon" class="moon-icon"></i>
+          <span>Modo Oscuro</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- Top header (User welcome & date) -->
+      <header class="main-header">
+        <div class="header-left">
+          <h1 id="header-user-welcome">¡Hola! Bienvenido de vuelta</h1>
+          <p id="header-date-string" class="header-date-text">Lunes, 25 de Mayo de 2026</p>
+        </div>
+        <div class="header-right">
+          <button id="themeToggleBtnHeader" class="theme-toggle-btn-circle" aria-label="Cambiar tema">
+            <i data-lucide="sun" class="sun-icon"></i>
+            <i data-lucide="moon" class="moon-icon"></i>
+          </button>
+          <div class="user-avatar" id="header-user-avatar">
+            <i data-lucide="user"></i>
+          </div>
+        </div>
+      </header>
+
+      <!-- VIEW: DASHBOARD -->
+      <section id="dashboard-view" class="view-pane active">
+        
+        <!-- Summary widgets grid -->
+        <div class="widgets-grid">
+          
+          <!-- Calories main progress card -->
+          <div class="card card-calories">
+            <div class="card-header">
+              <h2 class="card-title">Resumen de Calorías</h2>
+              <span class="card-subtitle">Meta Diaria</span>
+            </div>
+            
+            <div class="calories-progress-container">
+              <!-- SVG Ring Progress -->
+              <div class="svg-ring-wrapper">
+                <svg class="progress-ring-svg" width="200" height="200">
+                  <circle class="progress-ring-bg" cx="100" cy="100" r="85"></circle>
+                  <circle id="caloriesProgressRing" class="progress-ring-bar" cx="100" cy="100" r="85"></circle>
+                </svg>
+                <div class="calories-inner-text">
+                  <span id="dashCaloriesRemaining" class="calories-remaining-number">2,000</span>
+                  <span class="calories-remaining-label">kcal restantes</span>
+                </div>
+              </div>
+              
+              <div class="calories-summary-details">
+                <div class="stat-col">
+                  <span class="stat-value text-purple" id="dashCaloriesGoal">2,000</span>
+                  <span class="stat-label">Objetivo</span>
+                </div>
+                <div class="divider-v"></div>
+                <div class="stat-col">
+                  <span class="stat-value" id="dashCaloriesConsumed">0</span>
+                  <span class="stat-label">Consumido</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Macronutrients progress card -->
+          <div class="card card-macros">
+            <div class="card-header">
+              <h2 class="card-title">Macronutrientes</h2>
+              <span class="card-subtitle">Ingesta en gramos</span>
+            </div>
+            
+            <div class="macros-bars-list">
+              <!-- Protein Bar -->
+              <div class="macro-progress-bar-item">
+                <div class="macro-bar-label">
+                  <span class="macro-name"><span class="bullet bullet-protein"></span>Proteínas</span>
+                  <span class="macro-numbers"><strong id="dashProteinConsumed">0</strong> / <span id="dashProteinGoal">150</span> g</span>
+                </div>
+                <div class="macro-track">
+                  <div id="dashProteinFill" class="macro-fill bg-protein" style="width: 0%;"></div>
+                </div>
+                <span class="macro-percentage" id="dashProteinPct">0%</span>
+              </div>
+              
+              <!-- Carbs Bar -->
+              <div class="macro-progress-bar-item">
+                <div class="macro-bar-label">
+                  <span class="macro-name"><span class="bullet bullet-carbs"></span>Carbohidratos</span>
+                  <span class="macro-numbers"><strong id="dashCarbsConsumed">0</strong> / <span id="dashCarbsGoal">200</span> g</span>
+                </div>
+                <div class="macro-track">
+                  <div id="dashCarbsFill" class="macro-fill bg-carbs" style="width: 0%;"></div>
+                </div>
+                <span class="macro-percentage" id="dashCarbsPct">0%</span>
+              </div>
+              
+              <!-- Fats Bar -->
+              <div class="macro-progress-bar-item">
+                <div class="macro-bar-label">
+                  <span class="macro-name"><span class="bullet bullet-fats"></span>Grasas</span>
+                  <span class="macro-numbers"><strong id="dashFatsConsumed">0</strong> / <span id="dashFatsGoal">65</span> g</span>
+                </div>
+                <div class="macro-track">
+                  <div id="dashFatsFill" class="macro-fill bg-fats" style="width: 0%;"></div>
+                </div>
+                <span class="macro-percentage" id="dashFatsPct">0%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Water tracker card -->
+          <div class="card card-water">
+            <div class="card-header">
+              <h2 class="card-title">Consumo de Agua</h2>
+              <span class="card-subtitle">Mantente hidratado</span>
+            </div>
+            
+            <div class="water-tracker-layout">
+              <div class="water-glass-container">
+                <!-- Visual Water Flask Animation -->
+                <div class="water-flask">
+                  <div id="waterLiquidFill" class="water-liquid" style="height: 0%;">
+                    <div class="water-wave"></div>
+                  </div>
+                  <div class="water-flask-text">
+                    <span id="dashWaterVolume" class="water-volume-label">0</span>
+                    <span class="water-volume-unit">/ <span id="dashWaterGoal">2500</span> ml</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="water-controls">
+                <p class="water-progress-text">Meta diaria: <strong id="dashWaterPct">0%</strong></p>
+                <div class="water-btn-group">
+                  <button id="addWaterBtn" class="btn btn-water-add" aria-label="Añadir un vaso de agua">
+                    <i data-lucide="plus"></i>
+                    <span>+250 ml</span>
+                  </button>
+                  <button id="resetWaterBtn" class="btn btn-icon-secondary" aria-label="Reiniciar consumo de agua">
+                    <i data-lucide="rotate-ccw"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Mini Quick Weight / InBody Widget -->
+          <div class="card card-quick-stats">
+            <div class="card-header">
+              <h2 class="card-title">Métricas Corporales</h2>
+              <span class="card-subtitle">Últimos registros</span>
+            </div>
+            
+            <div class="quick-stats-grid">
+              <div class="quick-stat-card bg-soft-blue">
+                <div class="qs-icon text-blue">
+                  <i data-lucide="scale"></i>
+                </div>
+                <div class="qs-info">
+                  <span class="qs-label">Peso Actual</span>
+                  <h3 class="qs-value"><span id="dashWeightVal">--</span> <small>kg</small></h3>
+                  <span class="qs-subtext" id="dashWeightDate">Sin registros</span>
+                </div>
+              </div>
+              
+              <div class="quick-stat-card bg-soft-emerald">
+                <div class="qs-icon text-emerald">
+                  <i data-lucide="dumbbell"></i>
+                </div>
+                <div class="qs-info">
+                  <span class="qs-label">Masa Muscular</span>
+                  <h3 class="qs-value"><span id="dashMuscleVal">--</span> <small>kg</small></h3>
+                  <span class="qs-subtext" id="dashInbodyDate">InBody</span>
+                </div>
+              </div>
+              
+              <div class="quick-stat-card bg-soft-pink">
+                <div class="qs-icon text-pink">
+                  <i data-lucide="percent"></i>
+                </div>
+                <div class="qs-info">
+                  <span class="qs-label">% Grasa Corporal</span>
+                  <h3 class="qs-value"><span id="dashFatVal">--</span> <small>%</small></h3>
+                  <span class="qs-subtext" id="dashInbodyFatDate">InBody</span>
+                </div>
+              </div>
+              
+              <div class="quick-stat-card bg-soft-orange">
+                <div class="qs-icon text-orange">
+                  <i data-lucide="flame"></i>
+                </div>
+                <div class="qs-info">
+                  <span class="qs-label">Grasa Visceral</span>
+                  <h3 class="qs-value"><span id="dashVisceralVal">--</span></h3>
+                  <span class="qs-subtext">Nivel InBody</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </section>
+
+      <!-- VIEW: MEALS (DIARIO) -->
+      <section id="meals-view" class="view-pane">
+        
+        <!-- Date navigator header -->
+        <div class="meals-navigation-header">
+          <button id="mealsPrevDayBtn" class="btn btn-icon-flat" aria-label="Día anterior">
+            <i data-lucide="chevron-left"></i>
+          </button>
+          <div class="meals-date-picker-wrapper">
+            <i data-lucide="calendar" class="calendar-icon"></i>
+            <span id="mealsActiveDateLabel" class="meals-date-label">Hoy</span>
+            <input type="date" id="mealsActiveDatePicker" class="hidden-date-input" aria-label="Seleccionar fecha">
+          </div>
+          <button id="mealsNextDayBtn" class="btn btn-icon-flat" aria-label="Día siguiente">
+            <i data-lucide="chevron-right"></i>
+          </button>
+        </div>
+
+        <!-- Gemini AI Smart Voice / Text Logger -->
+        <div class="card gemini-ai-card">
+          <div class="gemini-header">
+            <div class="gemini-title-group">
+              <div class="gemini-sparkle-badge">
+                <i data-lucide="sparkles"></i>
+              </div>
+              <div>
+                <h2 class="gemini-title">Registro Inteligente por IA</h2>
+                <p class="gemini-subtitle">Procesado de forma directa y privada con Gemini 2.5 Flash</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="gemini-body">
+            <div class="gemini-input-group">
+              <textarea id="aiMealInput" placeholder="Ej: 'Desayuné 2 huevos revueltos con una taza de avena y una manzana roja'" rows="2" class="form-textarea" aria-label="Texto de comida para procesar con IA"></textarea>
+              
+              <!-- Sonic waves / recording status overlay inside input -->
+              <div id="aiVoiceRecordingWaves" class="voice-recording-waves hidden">
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <span class="recording-label">Escuchando comida...</span>
+              </div>
+            </div>
+
+            <div class="gemini-actions">
+              <!-- Microphone Speech Recognition Button -->
+              <button id="aiMicBtn" class="btn btn-mic-inactive" title="Grabar comida por voz">
+                <i data-lucide="mic"></i>
+                <span id="aiMicBtnText">Hablar</span>
+              </button>
+              
+              <button id="aiProcessBtn" class="btn btn-gemini">
+                <i data-lucide="send"></i>
+                <span>Agregar por IA</span>
+              </button>
+            </div>
+            
+            <div id="geminiApiKeyWarning" class="gemini-api-warning-banner hidden">
+              <i data-lucide="alert-triangle"></i>
+              <span>Por favor, configura tu <strong>API Key de Gemini</strong> en Ajustes para activar esta función de IA.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Food Journal Sections -->
+        <div class="meals-categories-grid">
+          
+          <!-- Category: Breakfast -->
+          <div class="card meal-category-card" data-category="Desayuno">
+            <div class="meal-category-header">
+              <div class="mch-left">
+                <div class="meal-icon-badge bg-soft-orange text-orange">
+                  <i data-lucide="coffee"></i>
+                </div>
+                <div>
+                  <h3 class="meal-cat-title">Desayuno</h3>
+                  <span class="meal-cat-subtext" id="mealsDesayunoCount">0 alimentos</span>
+                </div>
+              </div>
+              <div class="mch-right">
+                <span class="meal-cat-calories" id="mealsDesayunoKcal">0 kcal</span>
+              </div>
+            </div>
+            <div class="meal-food-list" id="mealsDesayunoList">
+              <p class="empty-list-placeholder">No hay alimentos registrados en el desayuno.</p>
+            </div>
+            <button class="btn btn-secondary-outline btn-full-width add-food-trigger" data-category="Desayuno">
+              <i data-lucide="plus"></i>
+              <span>Añadir Alimento</span>
+            </button>
+          </div>
+
+          <!-- Category: Lunch -->
+          <div class="card meal-category-card" data-category="Almuerzo">
+            <div class="meal-category-header">
+              <div class="mch-left">
+                <div class="meal-icon-badge bg-soft-emerald text-emerald">
+                  <i data-lucide="soup"></i>
+                </div>
+                <div>
+                  <h3 class="meal-cat-title">Almuerzo</h3>
+                  <span class="meal-cat-subtext" id="mealsAlmuerzoCount">0 alimentos</span>
+                </div>
+              </div>
+              <div class="mch-right">
+                <span class="meal-cat-calories" id="mealsAlmuerzoKcal">0 kcal</span>
+              </div>
+            </div>
+            <div class="meal-food-list" id="mealsAlmuerzoList">
+              <p class="empty-list-placeholder">No hay alimentos registrados en el almuerzo.</p>
+            </div>
+            <button class="btn btn-secondary-outline btn-full-width add-food-trigger" data-category="Almuerzo">
+              <i data-lucide="plus"></i>
+              <span>Añadir Alimento</span>
+            </button>
+          </div>
+
+          <!-- Category: Dinner -->
+          <div class="card meal-category-card" data-category="Cena">
+            <div class="meal-category-header">
+              <div class="mch-left">
+                <div class="meal-icon-badge bg-soft-blue text-blue">
+                  <i data-lucide="beef"></i>
+                </div>
+                <div>
+                  <h3 class="meal-cat-title">Cena</h3>
+                  <span class="meal-cat-subtext" id="mealsCenaCount">0 alimentos</span>
+                </div>
+              </div>
+              <div class="mch-right">
+                <span class="meal-cat-calories" id="mealsCenaKcal">0 kcal</span>
+              </div>
+            </div>
+            <div class="meal-food-list" id="mealsCenaList">
+              <p class="empty-list-placeholder">No hay alimentos registrados en la cena.</p>
+            </div>
+            <button class="btn btn-secondary-outline btn-full-width add-food-trigger" data-category="Cena">
+              <i data-lucide="plus"></i>
+              <span>Añadir Alimento</span>
+            </button>
+          </div>
+
+          <!-- Category: Snacks -->
+          <div class="card meal-category-card" data-category="Snack">
+            <div class="meal-category-header">
+              <div class="mch-left">
+                <div class="meal-icon-badge bg-soft-purple text-purple">
+                  <i data-lucide="apple"></i>
+                </div>
+                <div>
+                  <h3 class="meal-cat-title">Snacks / Meriendas</h3>
+                  <span class="meal-cat-subtext" id="mealsSnackCount">0 alimentos</span>
+                </div>
+              </div>
+              <div class="mch-right">
+                <span class="meal-cat-calories" id="mealsSnackKcal">0 kcal</span>
+              </div>
+            </div>
+            <div class="meal-food-list" id="mealsSnackList">
+              <p class="empty-list-placeholder">No hay alimentos registrados en snacks.</p>
+            </div>
+            <button class="btn btn-secondary-outline btn-full-width add-food-trigger" data-category="Snack">
+              <i data-lucide="plus"></i>
+              <span>Añadir Alimento</span>
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- VIEW: INBODY & PESO -->
+      <section id="inbody-view" class="view-pane">
+        
+        <div class="inbody-layout-grid">
+          
+          <!-- Left Col: Metric Entry Forms -->
+          <div class="inbody-forms-col">
+            
+            <!-- Weight Entry Card -->
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Registrar Peso Corporal</h2>
+                <p class="card-subtitle">Realiza el seguimiento diario o semanal</p>
+              </div>
+              <div class="card-body">
+                <form id="weightLogForm" class="inbody-form">
+                  <div class="form-row-grid">
+                    <div class="form-group">
+                      <label for="weightInputVal">Peso (kg)</label>
+                      <input type="number" id="weightInputVal" step="0.1" min="20" max="250" placeholder="Ej: 75.4" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="weightInputDate">Fecha de Registro</label>
+                      <input type="date" id="weightInputDate" class="form-input" required>
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-full-width">
+                    <i data-lucide="save"></i>
+                    <span>Registrar Peso</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- InBody Entry Card -->
+            <div class="card mt-4">
+              <div class="card-header">
+                <h2 class="card-title">Registrar Análisis InBody</h2>
+                <p class="card-subtitle">Registra tu estudio de composición corporal mensual</p>
+              </div>
+              <div class="card-body">
+                <form id="inbodyLogForm" class="inbody-form">
+                  
+                  <div class="form-row-grid">
+                    <div class="form-group">
+                      <label for="inbodyDate">Fecha de Análisis</label>
+                      <input type="date" id="inbodyDate" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="inbodyWeight">Peso Total (kg)</label>
+                      <input type="number" id="inbodyWeight" step="0.1" min="20" max="250" placeholder="Ej: 75.4" class="form-input" required>
+                    </div>
+                  </div>
+
+                  <div class="form-row-grid mt-3">
+                    <div class="form-group">
+                      <label for="inbodyMuscle">Masa Muscular (MME - kg)</label>
+                      <input type="number" id="inbodyMuscle" step="0.1" min="5" max="120" placeholder="Ej: 34.5" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="inbodyFatMass">Masa Grasa Corporal (kg)</label>
+                      <input type="number" id="inbodyFatMass" step="0.1" min="2" max="100" placeholder="Ej: 14.2" class="form-input" required>
+                    </div>
+                  </div>
+
+                  <div class="form-row-grid mt-3">
+                    <div class="form-group">
+                      <label for="inbodyFatPct">Porcentaje de Grasa (%)</label>
+                      <input type="number" id="inbodyFatPct" step="0.1" min="1" max="60" placeholder="Ej: 18.5" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="inbodyVisceral">Grasa Visceral (Nivel 1-20)</label>
+                      <input type="number" id="inbodyVisceral" step="1" min="1" max="20" placeholder="Ej: 6" class="form-input" required>
+                    </div>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary btn-full-width mt-4">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>Guardar Registro InBody</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Col: Graphs and History Tables -->
+          <div class="inbody-graphs-col">
+            
+            <!-- Weight Line Graph -->
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Evolución de Peso Diario</h2>
+                <p class="card-subtitle">Seguimiento temporal</p>
+              </div>
+              <div class="chart-container">
+                <canvas id="weightChartCanvas"></canvas>
+              </div>
+            </div>
+
+            <!-- InBody Line Graph -->
+            <div class="card mt-4">
+              <div class="card-header">
+                <h2 class="card-title">Masa Muscular vs. Masa Grasa (InBody)</h2>
+                <p class="card-subtitle">Evolución y análisis de recomposición corporal</p>
+              </div>
+              <div class="chart-container">
+                <canvas id="inbodyChartCanvas"></canvas>
+              </div>
+            </div>
+
+          </div>
+          
+        </div>
+
+        <!-- Full Historic Tables Section -->
+        <div class="card mt-4">
+          <div class="card-header">
+            <h2 class="card-title">Historial Mensual InBody</h2>
+            <p class="card-subtitle">Análisis detallado y comparación porcentual</p>
+          </div>
+          <div class="table-responsive-container">
+            <table class="data-table" id="inbodyHistoryTable">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Peso (kg)</th>
+                  <th>Masa Muscular (kg)</th>
+                  <th>Masa Grasa (kg)</th>
+                  <th>% Grasa Corporal</th>
+                  <th>Grasa Visceral</th>
+                  <th>Diferencia MME / MGC</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="inbodyHistoryTableBody">
+                <tr>
+                  <td colspan="8" class="text-center-placeholder">Aún no has registrado ningún análisis InBody.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- VIEW: CALCULATOR (OBJETIVOS) -->
+      <section id="calc-view" class="view-pane">
+        <div class="calc-layout-grid">
+          
+          <!-- Left: Input Form Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Calculadora Metabólica (BMR / TDEE)</h2>
+              <p class="card-subtitle">Fórmula científica de Mifflin-St Jeor para estimar calorías</p>
+            </div>
+            
+            <form id="calculatorForm" class="calc-form">
+              
+              <!-- Sex Selection (Buttons styled like cards) -->
+              <div class="form-group">
+                <label>Género Biológico</label>
+                <div class="gender-radio-group">
+                  <button type="button" class="gender-btn active" data-gender="male">
+                    <i data-lucide="mars"></i>
+                    <span>Masculino</span>
+                  </button>
+                  <button type="button" class="gender-btn" data-gender="female">
+                    <i data-lucide="venus"></i>
+                    <span>Femenino</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Metrics -->
+              <div class="form-row-grid mt-3">
+                <div class="form-group">
+                  <label for="calcAge">Edad (años)</label>
+                  <input type="number" id="calcAge" min="12" max="100" placeholder="Ej: 30" class="form-input" required>
+                </div>
+                <div class="form-group">
+                  <label for="calcHeight">Altura (cm)</label>
+                  <input type="number" id="calcHeight" min="100" max="250" placeholder="Ej: 175" class="form-input" required>
+                </div>
+              </div>
+
+              <div class="form-group mt-3">
+                <label for="calcWeight">Peso Corporal (kg)</label>
+                <input type="number" id="calcWeight" min="30" max="250" step="0.1" placeholder="Ej: 78.5" class="form-input" required>
+              </div>
+
+              <!-- Activity Level -->
+              <div class="form-group mt-3">
+                <label for="calcActivity">Nivel de Actividad Física</label>
+                <select id="calcActivity" class="form-select" required>
+                  <option value="1.2">Sedentario (Trabajo de oficina, poco/nada de ejercicio)</option>
+                  <option value="1.375">Actividad Ligera (Ejercicio suave 1-3 días a la semana)</option>
+                  <option value="1.55" selected>Actividad Moderada (Entrenamiento intenso 3-5 días/semana)</option>
+                  <option value="1.725">Actividad Intensa (Entrenamiento muy duro 6-7 días/semana)</option>
+                  <option value="1.9">Actividad Extra (Atleta profesional, trabajo físico extremo diario)</option>
+                </select>
+              </div>
+
+              <!-- Objective Goal -->
+              <div class="form-group mt-3">
+                <label for="calcGoal">Objetivo de Peso / Composición</label>
+                <select id="calcGoal" class="form-select" required>
+                  <option value="lose" selected>Pérdida de Grasa (Déficit Calórico controlado)</option>
+                  <option value="maintain">Mantenimiento de Peso (Balance Energético)</option>
+                  <option value="gain">Aumento de Masa Muscular (Superávit Calórico limpio)</option>
+                </select>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-full-width mt-4">
+                <i data-lucide="calculator"></i>
+                <span>Calcular Necesidades Nutricionales</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Right: Animated Results Display -->
+          <div class="card card-results" id="calcResultsCard">
+            <div class="card-header">
+              <h2 class="card-title">Tus Resultados Calculados</h2>
+              <p class="card-subtitle">Estimación basada en tus métricas</p>
+            </div>
+            
+            <!-- Default placeholder (shows before calculations) -->
+            <div id="resultsPlaceholder" class="results-placeholder">
+              <i data-lucide="sparkles" class="pulsing-icon"></i>
+              <p>Completa el formulario de la izquierda y haz clic en calcular para ver tus objetivos sugeridos.</p>
+            </div>
+
+            <!-- Real Results (hidden by default) -->
+            <div id="resultsContent" class="results-content hidden">
+              
+              <div class="metabolic-stats">
+                <div class="met-stat-box">
+                  <span class="met-label">Basa Metabólica (BMR)</span>
+                  <h3 class="met-val" id="resBmr">1,720 <small>kcal</small></h3>
+                </div>
+                <div class="met-stat-box">
+                  <span class="met-label">Gasto Total (TDEE)</span>
+                  <h3 class="met-val text-purple" id="resTdee">2,660 <small>kcal</small></h3>
+                </div>
+              </div>
+
+              <div class="caloric-goal-banner">
+                <span class="res-goal-title">Objetivo Calórico Diario Sugerido</span>
+                <h2 class="res-goal-val" id="resTargetCalories">2,160 <small>kcal/día</small></h2>
+                <p class="res-goal-description" id="resGoalDesc">Generando un déficit calórico saludable de -500 kcal para promover la pérdida de tejido graso reteniendo masa magra.</p>
+              </div>
+
+              <div class="macros-distribution-results">
+                <h3 class="sub-section-title">Distribución Sugerida de Macronutrientes</h3>
+                
+                <!-- Protein visual progress item -->
+                <div class="macro-result-item">
+                  <div class="mri-label">
+                    <span><strong>Proteínas</strong> (40% de calorías)</span>
+                    <span class="mri-grams" id="resProtein">150 g</span>
+                  </div>
+                  <div class="mri-track">
+                    <div class="mri-fill bg-protein" style="width: 40%;"></div>
+                  </div>
+                </div>
+
+                <!-- Carbs visual progress item -->
+                <div class="macro-result-item mt-2">
+                  <div class="mri-label">
+                    <span><strong>Carbohidratos</strong> (30% de calorías)</span>
+                    <span class="mri-grams" id="resCarbs">200 g</span>
+                  </div>
+                  <div class="mri-track">
+                    <div class="mri-fill bg-carbs" style="width: 30%;"></div>
+                  </div>
+                </div>
+
+                <!-- Fats visual progress item -->
+                <div class="macro-result-item mt-2">
+                  <div class="mri-label">
+                    <span><strong>Grasas</strong> (30% de calorías)</span>
+                    <span class="mri-grams" id="resFats">65 g</span>
+                  </div>
+                  <div class="mri-track">
+                    <div class="mri-fill bg-fats" style="width: 30%;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Button to apply target directly to Dashboard -->
+              <button id="applyGoalsBtn" class="btn btn-gemini btn-full-width mt-4">
+                <i data-lucide="check-circle-2"></i>
+                <span>Aplicar a mi Dashboard Diario</span>
+              </button>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- VIEW: SETTINGS (AJUSTES) -->
+      <section id="settings-view" class="view-pane">
+        
+        <div class="settings-grid">
+          
+          <!-- Gemini AI Key Configuration -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Configuración de Gemini AI</h2>
+              <p class="card-subtitle">Activa el registro inteligente por voz y texto de forma gratuita</p>
+            </div>
+            <div class="card-body">
+              <div class="gemini-setup-box">
+                <div class="gemini-setup-desc">
+                  <p>Esta aplicación utiliza tu propia <strong>API Key de Google Gemini</strong> de manera directa y segura. No se aloja en ningún servidor intermediario, por lo que su uso es privado y totalmente gratuito para ti.</p>
+                  <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" class="help-link">
+                    <i data-lucide="external-link"></i>
+                    <span>Obtener una API Key gratis en Google AI Studio</span>
+                  </a>
+                </div>
+
+                <div class="form-group mt-4">
+                  <label for="settingsGeminiKey">API Key de Gemini</label>
+                  <div class="input-password-wrapper">
+                    <input type="password" id="settingsGeminiKey" placeholder="Pega tu clave AIzaSy..." class="form-input">
+                    <button id="toggleShowKeyBtn" class="btn-input-icon" type="button" aria-label="Mostrar u ocultar clave">
+                      <i data-lucide="eye" id="toggleKeyIcon"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <button id="saveApiKeyBtn" class="btn btn-primary mt-3">
+                  <i data-lucide="shield-check"></i>
+                  <span>Guardar Clave</span>
+                </button>
+                
+                <div id="apiKeyStatusMessage" class="api-status-badge inactive mt-3">
+                  <i data-lucide="key-round"></i>
+                  <span id="apiKeyStatusText">API Key no configurada</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- User Personal Settings Target Override -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Establecer Objetivos Manuales</h2>
+              <p class="card-subtitle">Sobrescribe los objetivos calculados manualmente</p>
+            </div>
+            <div class="card-body">
+              <form id="settingsTargetsForm" class="inbody-form">
+                <div class="form-row-grid">
+                  <div class="form-group">
+                    <label for="setCalories">Meta Calorías (kcal)</label>
+                    <input type="number" id="setCalories" min="500" max="10000" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="setWater">Meta Agua (ml)</label>
+                    <input type="number" id="setWater" min="500" max="8000" step="50" class="form-input" required>
+                  </div>
+                </div>
+                
+                <div class="form-row-grid mt-3">
+                  <div class="form-group">
+                    <label for="setProtein">Meta Proteína (g)</label>
+                    <input type="number" id="setProtein" min="10" max="500" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="setCarbs">Meta Carbohidratos (g)</label>
+                    <input type="number" id="setCarbs" min="10" max="1000" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="setFats">Meta Grasas (g)</label>
+                    <input type="number" id="setFats" min="5" max="300" class="form-input" required>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full-width mt-4">
+                  <i data-lucide="check"></i>
+                  <span>Guardar Objetivos Manuales</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Backup & Data Management Card -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Gestión de Copias de Seguridad</h2>
+              <p class="card-subtitle">Exporta tu historial o transfiérelo a otro dispositivo</p>
+            </div>
+            <div class="card-body">
+              <div class="backup-actions">
+                <p class="backup-info-text">Toda la base de datos se guarda en tu teléfono. Descarga una copia de seguridad para no perder tus comidas y registros de peso o InBody.</p>
+                
+                <div class="backup-btn-grid mt-3">
+                  <button id="exportJsonBtn" class="btn btn-secondary-outline">
+                    <i data-lucide="download"></i>
+                    <span>Exportar Copia (JSON)</span>
+                  </button>
+                  
+                  <button id="importJsonTriggerBtn" class="btn btn-secondary-outline">
+                    <i data-lucide="upload"></i>
+                    <span>Importar Copia (JSON)</span>
+                  </button>
+                  <input type="file" id="importJsonFileInput" class="hidden" accept=".json">
+
+                  <button id="exportCsvBtn" class="btn btn-secondary-outline">
+                    <i data-lucide="file-spreadsheet"></i>
+                    <span>Descargar Comidas (CSV)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Developer Info & Reset App -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Opciones del Sistema</h2>
+              <p class="card-subtitle">Información del sistema y reinicio</p>
+            </div>
+            <div class="card-body">
+              <div class="system-status-box">
+                <h3 class="sub-section-title">Oye Google / Asistente</h3>
+                <p class="system-desc-text">Para agregar comidas manos libres desde tu Samsung S25, configura una rutina de Asistente de Google con los siguientes detalles:</p>
+                <div class="system-code-snippet">
+                  <strong>Acción:</strong> Abrir sitio web <code id="quickAddHelperUrl">https://mi-nutrilife.vercel.app/?quickadd=comida</code>
+                </div>
+                
+                <div class="danger-zone mt-4">
+                  <h3 class="danger-title text-red">Zona de Peligro</h3>
+                  <p class="danger-desc">Borrar todos tus registros del almacenamiento local de forma permanente. Esta acción no se puede deshacer.</p>
+                  <button id="resetAppBtn" class="btn btn-danger mt-2">
+                    <i data-lucide="trash-2"></i>
+                    <span>Borrar Todos los Datos de la App</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar for Mobile Devices -->
+    <nav class="bottom-nav">
+      <button class="bottom-nav-link active" data-target="dashboard-view" id="mob-btn-dashboard">
+        <i data-lucide="layout-dashboard"></i>
+        <span>Dashboard</span>
+      </button>
+      <button class="bottom-nav-link" data-target="meals-view" id="mob-btn-meals">
+        <i data-lucide="utensils"></i>
+        <span>Comidas</span>
+      </button>
+      <button class="bottom-nav-link" data-target="inbody-view" id="mob-btn-inbody">
+        <i data-lucide="activity"></i>
+        <span>InBody</span>
+      </button>
+      <button class="bottom-nav-link" data-target="calc-view" id="mob-btn-calc">
+        <i data-lucide="calculator"></i>
+        <span>Metas</span>
+      </button>
+      <button class="bottom-nav-link" data-target="settings-view" id="mob-btn-settings">
+        <i data-lucide="settings"></i>
+        <span>Ajustes</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- MODAL: ADD FOOD DIALOG -->
+  <div id="addFoodModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalCategoryTitle">Agregar Alimento</h3>
+        <button id="closeFoodModalBtn" class="btn-close-modal" aria-label="Cerrar modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      
+      <!-- Tabs within modal -->
+      <div class="modal-tabs">
+        <button id="tabQuickAdd" class="modal-tab-btn active">Alimentos Rápidos</button>
+        <button id="tabCustomAdd" class="modal-tab-btn">Personalizado</button>
+      </div>
+
+      <!-- Content Tab 1: Quick Add List -->
+      <div id="tabContentQuick" class="modal-tab-content active">
+        <p class="tab-desc">Alimentos saludables comunes. Haz un toque para agregarlos al instante:</p>
+        <div class="quick-foods-grid" id="quickFoodsGridList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Content Tab 2: Custom Form -->
+      <div id="tabContentCustom" class="modal-tab-content">
+        <form id="customFoodForm">
+          <div class="form-group">
+            <label for="customFoodName">Nombre del Alimento</label>
+            <input type="text" id="customFoodName" placeholder="Ej: Pechuga de Pollo" class="form-input" required autocomplete="off">
+          </div>
+
+          <div class="form-row-grid mt-3">
+            <div class="form-group">
+              <label for="customFoodKcal">Calorías (kcal)</label>
+              <input type="number" id="customFoodKcal" min="0" max="2000" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label for="customFoodProtein">Proteínas (g)</label>
+              <input type="number" id="customFoodProtein" min="0" max="200" class="form-input" required>
+            </div>
+          </div>
+
+          <div class="form-row-grid mt-3">
+            <div class="form-group">
+              <label for="customFoodCarbs">Carbohidratos (g)</label>
+              <input type="number" id="customFoodCarbs" min="0" max="500" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label for="customFoodFats">Grasas (g)</label>
+              <input type="number" id="customFoodFats" min="0" max="200" class="form-input" required>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full-width mt-4">
+            <i data-lucide="plus"></i>
+            <span>Añadir a mi Diario</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
