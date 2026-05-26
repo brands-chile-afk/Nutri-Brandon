@@ -1773,6 +1773,9 @@ function initAuthUiEvents() {
         // signInWithPopup funciona en la mayoría de navegadores de escritorio y celulares modernos
         await firebase.auth().signInWithPopup(provider);
         console.log("Sesión de Google iniciada exitosamente.");
+        
+        // Forzar recarga limpia para cargar Firestore desde cero con el nuevo usuario
+        window.location.reload();
       } catch (err) {
         console.error("Error en Google Sign-In:", err);
         // Si el popup fue bloqueado por el navegador o cerrado, intentar con Redirección
@@ -1809,6 +1812,9 @@ function initAuthUiEvents() {
       await firebase.auth().signInWithEmailAndPassword(email, pass);
       sessionStorage.removeItem("nutrilife_offline_mode");
       document.getElementById("loginForm").reset();
+      
+      // Forzar recarga limpia
+      window.location.reload();
     } catch (err) {
       console.error(err);
       alert(`Error al ingresar: ${translateAuthError(err.code)}`);
