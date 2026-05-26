@@ -1679,6 +1679,7 @@ function handleAuthStateChanged(user) {
   if (user) {
     // Sesión iniciada
     body.classList.remove("auth-required");
+    document.getElementById("authContainer").classList.add("hidden");
     syncIndicator.classList.remove("hidden");
     document.getElementById("cloudUserEmailText").innerText = `Sesión iniciada como: ${user.email}`;
     
@@ -1695,6 +1696,7 @@ function handleAuthStateChanged(user) {
     if (offlineModeActive) {
       // Si el usuario solicitó continuar sin cuenta
       body.classList.remove("auth-required");
+      document.getElementById("authContainer").classList.add("hidden");
       syncIndicator.classList.add("hidden");
       document.getElementById("cloudUserEmailText").innerText = "Sesión iniciada como: local@offline";
     } else {
