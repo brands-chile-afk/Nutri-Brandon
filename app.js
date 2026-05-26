@@ -1627,12 +1627,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 // 18. INTEGRACIÓN E IMPLANTACIÓN DE LOGÍSTICA DE FIREBASE (CLOUD SYNC)
 // ==========================================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyDE5L8XvY5w2K3m8N4p5P7r8s9t0u1v2w",
-  authDomain: "nutrilife-brand.firebaseapp.com",
-  projectId: "nutrilife-brand",
-  storageBucket: "nutrilife-brand.appspot.com",
-  messagingSenderId: "305820194820",
-  appId: "1:305820194820:web:85a2f3e69cd14b82d0e76c"
+  apiKey: "AIzaSyCCTWC_cYybCA_vz8wbk3Bikt8x9LhDcNs",
+  authDomain: "brandon-comidas.firebaseapp.com",
+  projectId: "brandon-comidas",
+  storageBucket: "brandon-comidas.firebasestorage.app",
+  messagingSenderId: "539049735170",
+  appId: "1:539049735170:web:49aa33cf2119a13738231b",
+  measurementId: "G-7JEJLEJP9M"
 };
 
 let isFirebaseConnected = false;
