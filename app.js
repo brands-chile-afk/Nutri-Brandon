@@ -1654,6 +1654,15 @@ function initFirebaseSync() {
     // Configurar escuchas de inicio de sesión
     firebase.auth().onAuthStateChanged(handleAuthStateChanged);
     
+    // Capturar resultado de redirección de Google (muy importante para navegadores móviles/PWAs)
+    firebase.auth().getRedirectResult().then((result) => {
+      if (result && result.user) {
+        console.log("Sesión iniciada vía redirección de Google:", result.user.email);
+      }
+    }).catch((error) => {
+      console.error("Error al capturar redirección de Google:", error);
+    });
+
     // Inicializar eventos de formularios de login
     initAuthUiEvents();
   } catch (error) {
@@ -1672,6 +1681,12 @@ function handleAuthStateChanged(user) {
     syncIndicator.classList.remove("hidden");
     document.getElementById("cloudUserEmailText").innerText = `Sesión iniciada como: ${user.email}`;
     
+    // Si se logueó con Google, guardar el nombre si no está configurado
+    if (user.displayName && (!state.settings.name || state.settings.name === "Usuario")) {
+      state.settings.name = user.displayName;
+      saveStateToLocalStorage();
+    }
+
     // Activar escucha en tiempo real de Firestore
     startRealtimeCloudSync(user.uid);
   } else {
@@ -1735,6 +1750,47 @@ function initAuthUiEvents() {
     // Forzar renderizado
     renderDashboard();
   });
+
+  // Iniciar Sesión con Google (Gmail)
+  const btnGoogleLogin = document.getElementById("btnGoogleLogin");
+  if (btnGoogleLogin) {
+    btnGoogleLogin.addEventListener("click", async () => {
+      if (typeof firebase === "undefined" || !isFirebaseConnected) {
+        alert("El servicio de Firebase no está conectado o configurado correctamente.");
+        return;
+      }
+
+      const provider = new firebase.auth.GoogleAuthProvider();
+      btnGoogleLogin.disabled = true;
+      const originalText = btnGoogleLogin.innerHTML;
+      btnGoogleLogin.innerHTML = "<span>Iniciando sesión...</span>";
+
+      try {
+        sessionStorage.removeItem("nutrilife_offline_mode");
+        // signInWithPopup funciona en la mayoría de navegadores de escritorio y celulares modernos
+        await firebase.auth().signInWithPopup(provider);
+        console.log("Sesión de Google iniciada exitosamente.");
+      } catch (err) {
+        console.error("Error en Google Sign-In:", err);
+        // Si el popup fue bloqueado por el navegador o cerrado, intentar con Redirección
+        if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+          try {
+            await firebase.auth().signInWithRedirect(provider);
+          } catch (redirectErr) {
+            console.error("Error en Google Redirect:", redirectErr);
+            alert(`Error de autenticación con Google (Redirección): ${redirectErr.message || redirectErr.code}`);
+          }
+        } else {
+          alert(`Error al iniciar sesión con Google: ${err.message || err.code}`);
+        }
+      } finally {
+        if (btnGoogleLogin) {
+          btnGoogleLogin.disabled = false;
+          btnGoogleLogin.innerHTML = originalText;
+        }
+      }
+    });
+  }
 
   // Iniciar Sesión Form
   document.getElementById("loginForm").addEventListener("submit", async (e) => {
