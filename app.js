@@ -153,11 +153,56 @@ function initDatabase() {
   applyTheme(state.settings.theme || "light");
 }
 
+let isCloudSyncing = false;
+
 function saveStateToLocalStorage() {
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
   localStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(state.dailyLogs));
   localStorage.setItem(STORAGE_KEYS.WEIGHT_HISTORY, JSON.stringify(state.weightHistory));
   localStorage.setItem(STORAGE_KEYS.INBODY_HISTORY, JSON.stringify(state.inbodyHistory));
+
+  // Sincronizar asíncronamente con la nube si hay inicio de sesión y no estamos ya sincronizando
+  if (isFirebaseConnected && firebase.auth().currentUser && !isCloudSyncing) {
+    saveDataToCloudSync();
+  }
+}
+
+async function saveDataToCloudSync() {
+  const user = firebase.auth().currentUser;
+  if (!user || !db) return;
+
+  const syncIndicator = document.getElementById("syncIndicator");
+  const iconSuccess = document.getElementById("syncIconSuccess");
+  const iconLoading = document.getElementById("syncIconLoading");
+  const iconError = document.getElementById("syncIconError");
+
+  // Mostrar loading
+  syncIndicator.classList.remove("hidden");
+  iconSuccess.classList.add("hidden");
+  iconError.classList.add("hidden");
+  iconLoading.classList.remove("hidden");
+
+  isCloudSyncing = true;
+
+  try {
+    await db.collection("users").doc(user.uid).set({
+      settings: state.settings,
+      dailyLogs: state.dailyLogs,
+      weightHistory: state.weightHistory,
+      inbodyHistory: state.inbodyHistory,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    // Sincronización exitosa
+    iconLoading.classList.add("hidden");
+    iconSuccess.classList.remove("hidden");
+  } catch (error) {
+    console.error("Error al sincronizar con Firebase:", error);
+    iconLoading.classList.add("hidden");
+    iconError.classList.remove("hidden");
+  } finally {
+    isCloudSyncing = false;
+  }
 }
 
 // 3. CONTROLADOR DE NAVEGACION POR PESTAÑAS (SPA)
@@ -1560,6 +1605,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Cargar datos locales e inicializar variables
   initDatabase();
   
+  // Inicializar Sincronización de Firebase (Login y Nube)
+  initFirebaseSync();
+
   // Inicializar componentes
   initNavigation();
   initMealsNavigation();
@@ -1574,3 +1622,271 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Revisar si la app fue abierta por Oye Google / Asistente y procesar la comida asincrónicamente
   await checkAndProcessQuickAdd();
 });
+
+// ==========================================================================
+// 18. INTEGRACIÓN E IMPLANTACIÓN DE LOGÍSTICA DE FIREBASE (CLOUD SYNC)
+// ==========================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyDE5L8XvY5w2K3m8N4p5P7r8s9t0u1v2w",
+  authDomain: "nutrilife-brand.firebaseapp.com",
+  projectId: "nutrilife-brand",
+  storageBucket: "nutrilife-brand.appspot.com",
+  messagingSenderId: "305820194820",
+  appId: "1:305820194820:web:85a2f3e69cd14b82d0e76c"
+};
+
+let isFirebaseConnected = false;
+let db = null;
+let firebaseUnsubscribe = null;
+
+function initFirebaseSync() {
+  if (typeof firebase === "undefined") {
+    console.warn("Firebase SDK no cargado. Funcionando en Modo Local.");
+    return;
+  }
+
+  try {
+    firebase.initializeApp(firebaseConfig);
+    isFirebaseConnected = true;
+    db = firebase.firestore();
+    console.log("Firebase conectado exitosamente.");
+    
+    // Configurar escuchas de inicio de sesión
+    firebase.auth().onAuthStateChanged(handleAuthStateChanged);
+    
+    // Inicializar eventos de formularios de login
+    initAuthUiEvents();
+  } catch (error) {
+    console.error("Error al inicializar Firebase:", error);
+  }
+}
+
+function handleAuthStateChanged(user) {
+  const body = document.body;
+  const syncIndicator = document.getElementById("syncIndicator");
+  const offlineModeActive = sessionStorage.getItem("nutrilife_offline_mode") === "true";
+
+  if (user) {
+    // Sesión iniciada
+    body.classList.remove("auth-required");
+    syncIndicator.classList.remove("hidden");
+    document.getElementById("cloudUserEmailText").innerText = `Sesión iniciada como: ${user.email}`;
+    
+    // Activar escucha en tiempo real de Firestore
+    startRealtimeCloudSync(user.uid);
+  } else {
+    // Sesión no iniciada
+    if (offlineModeActive) {
+      // Si el usuario solicitó continuar sin cuenta
+      body.classList.remove("auth-required");
+      syncIndicator.classList.add("hidden");
+      document.getElementById("cloudUserEmailText").innerText = "Sesión iniciada como: local@offline";
+    } else {
+      // Requerir Login obligatoriamente
+      body.classList.add("auth-required");
+      document.getElementById("authContainer").classList.remove("hidden");
+      
+      // Asegurar que Lucide renderice los iconos del Login
+      lucide.createIcons();
+    }
+  }
+}
+
+function initAuthUiEvents() {
+  // Alternadores de contraseña
+  document.getElementById("toggleShowLoginPassBtn").addEventListener("click", () => {
+    const input = document.getElementById("loginPassword");
+    const icon = document.getElementById("loginPassIcon");
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    icon.setAttribute("data-lucide", show ? "eye-off" : "eye");
+    lucide.createIcons();
+  });
+
+  document.getElementById("toggleShowRegPassBtn").addEventListener("click", () => {
+    const input = document.getElementById("registerPassword");
+    const icon = document.getElementById("regPassIcon");
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    icon.setAttribute("data-lucide", show ? "eye-off" : "eye");
+    lucide.createIcons();
+  });
+
+  // Alternadores de vista (Login vs Registro)
+  document.getElementById("btnSwitchToRegister").addEventListener("click", () => {
+    document.getElementById("authViewLogin").classList.add("hidden");
+    document.getElementById("authViewRegister").classList.remove("hidden");
+    lucide.createIcons();
+  });
+
+  document.getElementById("btnSwitchToLogin").addEventListener("click", () => {
+    document.getElementById("authViewRegister").classList.add("hidden");
+    document.getElementById("authViewLogin").classList.remove("hidden");
+    lucide.createIcons();
+  });
+
+  // Continuar en Modo Local
+  document.getElementById("btnContinueOffline").addEventListener("click", () => {
+    sessionStorage.setItem("nutrilife_offline_mode", "true");
+    document.body.classList.remove("auth-required");
+    document.getElementById("syncIndicator").classList.add("hidden");
+    document.getElementById("cloudUserEmailText").innerText = "Sesión iniciada como: local@offline";
+    
+    // Forzar renderizado
+    renderDashboard();
+  });
+
+  // Iniciar Sesión Form
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("loginEmail").value.trim();
+    const pass = document.getElementById("loginPassword").value;
+    const btn = document.getElementById("btnLoginSubmit");
+    
+    btn.disabled = true;
+    btn.innerText = "Ingresando...";
+
+    try {
+      await firebase.auth().signInWithEmailAndPassword(email, pass);
+      sessionStorage.removeItem("nutrilife_offline_mode");
+      document.getElementById("loginForm").reset();
+    } catch (err) {
+      console.error(err);
+      alert(`Error al ingresar: ${translateAuthError(err.code)}`);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Ingresar";
+    }
+  });
+
+  // Crear Cuenta Form
+  document.getElementById("registerForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("registerName").value.trim();
+    const email = document.getElementById("registerEmail").value.trim();
+    const pass = document.getElementById("registerPassword").value;
+    const btn = document.getElementById("btnRegisterSubmit");
+    
+    btn.disabled = true;
+    btn.innerText = "Registrando...";
+
+    try {
+      const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, pass);
+      const user = userCredential.user;
+      
+      // Actualizar nombre en settings locales
+      state.settings.name = name;
+      
+      // Crear base inicial en Firestore forzando migración local previa
+      await db.collection("users").doc(user.uid).set({
+        settings: state.settings,
+        dailyLogs: state.dailyLogs,
+        weightHistory: state.weightHistory,
+        inbodyHistory: state.inbodyHistory,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      
+      sessionStorage.removeItem("nutrilife_offline_mode");
+      document.getElementById("registerForm").reset();
+    } catch (err) {
+      console.error(err);
+      alert(`Error al registrarse: ${translateAuthError(err.code)}`);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Crear Cuenta";
+    }
+  });
+
+  // Cerrar Sesión
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    if (confirm("¿Estás seguro de que deseas cerrar sesión?")) {
+      try {
+        if (firebaseUnsubscribe) firebaseUnsubscribe();
+        await firebase.auth().signOut();
+        sessionStorage.removeItem("nutrilife_offline_mode");
+        // Forzar limpieza y redirección
+        localStorage.clear();
+        state = getMockInitialData();
+        saveStateToLocalStorage();
+        window.location.reload();
+      } catch (err) {
+        console.error("Error al cerrar sesión:", err);
+      }
+    }
+  });
+}
+
+function translateAuthError(code) {
+  switch (code) {
+    case "auth/invalid-email": return "Correo electrónico no válido.";
+    case "auth/user-disabled": return "Usuario deshabilitado.";
+    case "auth/user-not-found": return "No se encontró ningún usuario con este correo.";
+    case "auth/wrong-password": return "Contraseña incorrecta.";
+    case "auth/email-already-in-use": return "Este correo electrónico ya está registrado.";
+    case "auth/weak-password": return "La contraseña es muy débil (mínimo 6 caracteres).";
+    default: return "Error de conexión con el servidor.";
+  }
+}
+
+// Escucha en tiempo real sobre Firestore
+function startRealtimeCloudSync(uid) {
+  if (firebaseUnsubscribe) firebaseUnsubscribe();
+
+  const syncIndicator = document.getElementById("syncIndicator");
+  const iconSuccess = document.getElementById("syncIconSuccess");
+  const iconLoading = document.getElementById("syncIconLoading");
+  const iconError = document.getElementById("syncIconError");
+
+  // Mostrar loading
+  syncIndicator.classList.remove("hidden");
+  iconSuccess.classList.add("hidden");
+  iconLoading.classList.remove("hidden");
+
+  // Suscribirse a los datos del documento del usuario en Firestore
+  firebaseUnsubscribe = db.collection("users").doc(uid).onSnapshot((doc) => {
+    isCloudSyncing = true;
+    
+    if (doc.exists) {
+      const cloudData = doc.data();
+      
+      // Sincronizar en memoria y LocalStorage
+      if (cloudData.settings) state.settings = cloudData.settings;
+      if (cloudData.dailyLogs) state.dailyLogs = cloudData.dailyLogs;
+      if (cloudData.weightHistory) state.weightHistory = cloudData.weightHistory;
+      if (cloudData.inbodyHistory) state.inbodyHistory = cloudData.inbodyHistory;
+
+      // Guardar localmente
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
+      localStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(state.dailyLogs));
+      localStorage.setItem(STORAGE_KEYS.WEIGHT_HISTORY, JSON.stringify(state.weightHistory));
+      localStorage.setItem(STORAGE_KEYS.INBODY_HISTORY, JSON.stringify(state.inbodyHistory));
+
+      // Actualizar visualizaciones
+      if (activeView === "dashboard-view") renderDashboard();
+      if (activeView === "meals-view") renderMealsView();
+      if (activeView === "inbody-view") renderInbodyView();
+      if (activeView === "settings-view") populateSettingsInputs();
+      
+      // Aplicar tema dinámicamente si cambió externamente
+      applyTheme(state.settings.theme || "light");
+    } else {
+      // Si el documento en la nube no existe, migrar datos locales inmediatamente
+      db.collection("users").doc(uid).set({
+        settings: state.settings,
+        dailyLogs: state.dailyLogs,
+        weightHistory: state.weightHistory,
+        inbodyHistory: state.inbodyHistory,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    isCloudSyncing = false;
+    iconLoading.classList.add("hidden");
+    iconSuccess.classList.remove("hidden");
+  }, (error) => {
+    console.error("Error en la escucha de Firestore:", error);
+    isCloudSyncing = false;
+    iconLoading.classList.add("hidden");
+    iconError.classList.remove("hidden");
+  });
+}

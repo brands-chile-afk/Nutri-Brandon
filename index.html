@@ -26,6 +26,11 @@
   <!-- Lucide Icons CDN for sleek modern icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
+  <!-- Firebase SDK Compat (para Login y Sincronización) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="light-mode">
@@ -69,6 +74,85 @@
         <h3>No se pudo procesar la comida</h3>
         <p id="quickAddErrorMsg">Verifica tu clave de API de Gemini en Ajustes.</p>
         <button id="quickAddErrorCloseBtn" class="btn btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pantalla de Login / Autenticación de Firebase -->
+  <div id="authContainer" class="auth-container hidden">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-brand-logo">
+          <i data-lucide="apple"></i>
+        </div>
+        <span class="auth-brand-name">NutriLife</span>
+      </div>
+
+      <div id="authViewLogin" class="auth-view active">
+        <h2 class="auth-title">Iniciar Sesión</h2>
+        <p class="auth-subtitle">Accede a tus datos sincronizados desde cualquier dispositivo</p>
+        
+        <form id="loginForm" class="auth-form mt-4">
+          <div class="form-group">
+            <label for="loginEmail">Correo Electrónico</label>
+            <input type="email" id="loginEmail" placeholder="tu@correo.com" class="form-input" required autocomplete="email">
+          </div>
+          <div class="form-group mt-3">
+            <label for="loginPassword">Contraseña</label>
+            <div class="input-password-wrapper">
+              <input type="password" id="loginPassword" placeholder="••••••••" class="form-input" required autocomplete="current-password">
+              <button id="toggleShowLoginPassBtn" class="btn-input-icon" type="button" aria-label="Mostrar contraseña">
+                <i data-lucide="eye" id="loginPassIcon"></i>
+              </button>
+            </div>
+          </div>
+          
+          <button type="submit" id="btnLoginSubmit" class="btn btn-primary btn-full-width mt-4">
+            <span>Ingresar</span>
+          </button>
+        </form>
+
+        <p class="auth-switch-text mt-4">
+          ¿No tienes una cuenta? <button id="btnSwitchToRegister" class="btn-link">Registrarse</button>
+        </p>
+      </div>
+
+      <div id="authViewRegister" class="auth-view hidden">
+        <h2 class="auth-title">Crear Cuenta</h2>
+        <p class="auth-subtitle">Empieza a registrar y sincronizar tu nutrición e InBody</p>
+        
+        <form id="registerForm" class="auth-form mt-4">
+          <div class="form-group">
+            <label for="registerName">Nombre de Usuario</label>
+            <input type="text" id="registerName" placeholder="Brandon" class="form-input" required autocomplete="name">
+          </div>
+          <div class="form-group mt-3">
+            <label for="registerEmail">Correo Electrónico</label>
+            <input type="email" id="registerEmail" placeholder="tu@correo.com" class="form-input" required autocomplete="email">
+          </div>
+          <div class="form-group mt-3">
+            <label for="registerPassword">Contraseña (mínimo 6 caracteres)</label>
+            <div class="input-password-wrapper">
+              <input type="password" id="registerPassword" placeholder="••••••••" minlength="6" class="form-input" required autocomplete="new-password">
+              <button id="toggleShowRegPassBtn" class="btn-input-icon" type="button" aria-label="Mostrar contraseña">
+                <i data-lucide="eye" id="regPassIcon"></i>
+              </button>
+            </div>
+          </div>
+          
+          <button type="submit" id="btnRegisterSubmit" class="btn btn-primary btn-full-width mt-4">
+            <span>Crear Cuenta</span>
+          </button>
+        </form>
+
+        <p class="auth-switch-text mt-4">
+          ¿Ya tienes cuenta? <button id="btnSwitchToLogin" class="btn-link">Iniciar Sesión</button>
+        </p>
+      </div>
+
+      <!-- Local mode link -->
+      <div class="auth-footer mt-4">
+        <button id="btnContinueOffline" class="btn-link-secondary">Continuar en Modo Local (sin cuenta)</button>
       </div>
     </div>
   </div>
@@ -127,6 +211,13 @@
           <p id="header-date-string" class="header-date-text">Lunes, 25 de Mayo de 2026</p>
         </div>
         <div class="header-right">
+          <!-- Indicador de Sincronización en la Nube -->
+          <div id="syncIndicator" class="sync-indicator hidden" title="Estado de Sincronización">
+            <i data-lucide="cloud-check" class="sync-icon-success" id="syncIconSuccess"></i>
+            <i data-lucide="cloud-lightning" class="sync-icon-error hidden" id="syncIconError"></i>
+            <i data-lucide="refresh-cw" class="sync-icon-loading hidden rotating" id="syncIconLoading"></i>
+          </div>
+
           <button id="themeToggleBtnHeader" class="theme-toggle-btn-circle" aria-label="Cambiar tema">
             <i data-lucide="sun" class="sun-icon"></i>
             <i data-lucide="moon" class="moon-icon"></i>
@@ -920,6 +1011,16 @@
                 <p class="system-desc-text">Para agregar comidas manos libres desde tu Samsung S25, configura una rutina de Asistente de Google con los siguientes detalles:</p>
                 <div class="system-code-snippet">
                   <strong>Acción:</strong> Abrir sitio web <code id="quickAddHelperUrl">https://mi-nutrilife.vercel.app/?quickadd=comida</code>
+                </div>
+                
+                <!-- Cloud Sync Status & Log out -->
+                <div class="cloud-sync-status mt-4" id="settingsCloudSyncSection">
+                  <h3 class="sub-section-title">Sincronización en la Nube</h3>
+                  <p class="system-desc-text" id="cloudUserEmailText">Sesión iniciada como: local@offline</p>
+                  <button id="logoutBtn" class="btn btn-secondary-outline mt-2 btn-full-width">
+                    <i data-lucide="log-out"></i>
+                    <span>Cerrar Sesión</span>
+                  </button>
                 </div>
                 
                 <div class="danger-zone mt-4">

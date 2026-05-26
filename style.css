@@ -2091,3 +2091,195 @@ body.dark-mode .moon-icon { display: inline-block; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   7. SINCRO Y PANTALLA DE AUTENTICACIÓN (LOGIN)
+   ========================================================================== */
+
+/* Sync Indicator in Header */
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-right: 0.25rem;
+}
+
+.sync-indicator:hover {
+  background-color: var(--bg-primary);
+}
+
+.sync-icon-success {
+  color: var(--accent-protein);
+  width: 20px;
+  height: 20px;
+}
+
+.sync-icon-error {
+  color: var(--accent-fats);
+  width: 20px;
+  height: 20px;
+}
+
+.sync-icon-loading {
+  color: var(--accent-purple);
+  width: 18px;
+  height: 18px;
+}
+
+.rotating {
+  animation: spin 1.2s infinite linear;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Auth required helper class to switch view states */
+body.auth-required .app-container {
+  display: none !important;
+}
+
+body.auth-required .auth-container {
+  display: flex !important;
+}
+
+/* Fullscreen Auth Container */
+.auth-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+  z-index: 2000;
+  animation: fadeIn var(--transition-normal) forwards;
+}
+
+.auth-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 2rem;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.auth-brand-logo {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, var(--accent-purple), var(--accent-water));
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.auth-brand-logo i {
+  width: 24px;
+  height: 24px;
+}
+
+.auth-brand-name {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  background: linear-gradient(to right, var(--text-primary), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.auth-view {
+  width: 100%;
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+.auth-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+.auth-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.auth-switch-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent-purple);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: color var(--transition-fast);
+}
+
+.btn-link:hover {
+  color: var(--accent-purple-hover);
+  text-decoration: underline;
+}
+
+.auth-footer {
+  width: 100%;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 1.25rem;
+  text-align: center;
+}
+
+.btn-link-secondary {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: color var(--transition-fast);
+}
+
+.btn-link-secondary:hover {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
