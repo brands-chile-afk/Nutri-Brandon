@@ -1,0 +1,229 @@
+========================================================================
+GUIA DE INTEGRACION: FIREBASE (AUTH + FIRESTORE) PARA DASHBOARDS WEB
+========================================================================
+
+Esta guia detalla la arquitectura y el codigo paso a paso para lograr que cada usuario inicie sesion con su cuenta de Google (Gmail) y tenga su propia base de datos de configuraciones y registros en la nube en tiempo real utilizando Firebase. Ideal para dashboards financieros empresariales.
+
+---
+
+1. ARQUITECTURA DE DATOS EN LA NUBE (FIRESTORE)
+========================================================================
+El principio fundamental para guardar configuraciones por usuario es estructurar tu base de datos NoSQL de Firestore de la siguiente manera:
+
+* Coleccion Principal: 'users' (donde estan todos los usuarios).
+* Documento Unico: 'uid' (el ID unico generado por Firebase Auth al registrarse).
+* Campos del Documento: Las configuraciones del usuario (tema, moneda, balances).
+
+Estructura visual en Firestore:
+users (Coleccion)
+ └── [UID_UNICO_DEL_USUARIO] (Documento)
+      ├── settings: { theme: "dark", lang: "es", currency: "CLP" }
+      ├── financeData: [ ... transacciones ... ]
+      └── updatedAt: timestamp
+
+---
+
+2. CARGA DE SDKS EN TU ARCHIVO HTML
+========================================================================
+Si construyes una aplicacion estatica o dashboard portable, importa los SDKs 'Compat' de Firebase via CDN antes de tu script principal:
+
+<!-- Firebase Core App (Requerido) -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+
+<!-- Firebase Authentication (Para Login con Google) -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+<!-- Cloud Firestore (Para base de datos NoSQL) -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+---
+
+3. INICIALIZACION EN TU ARCHIVO JAVASCRIPT
+========================================================================
+Define las credenciales de tu proyecto de Firebase en tu archivo 'app.js' e inicializa los servicios:
+
+const firebaseConfig = {
+  apiKey: "TU_API_KEY_REAL",
+  authDomain: "tu-proyecto.firebaseapp.com",
+  projectId: "tu-proyecto",
+  storageBucket: "tu-proyecto.firebasestorage.app",
+  messagingSenderId: "TU_SENDER_ID",
+  appId: "TU_APP_ID"
+};
+
+let db = null;
+let isFirebaseConnected = false;
+
+function initFirebase() {
+  if (typeof firebase === "undefined") {
+    console.warn("Firebase SDK no cargado.");
+    return;
+  }
+
+  try {
+    firebase.initializeApp(firebaseConfig);
+    isFirebaseConnected = true;
+    db = firebase.firestore(); // Conexion a la base de datos Firestore
+    console.log("Firebase inicializado con exito.");
+
+    // Escuchar el estado de autenticacion (Login / Logout)
+    firebase.auth().onAuthStateChanged(handleAuthStateChanged);
+  } catch (error) {
+    console.error("Error al conectar Firebase:", error);
+  }
+}
+
+---
+
+4. CONTROL DEL ESTADO DE AUTENTICACION
+========================================================================
+El metodo '.onAuthStateChanged' se ejecuta automaticamente cada vez que el usuario inicia o cierra sesion, o cuando refresca la pagina manteniendo la sesion activa.
+
+function handleAuthStateChanged(user) {
+  if (user) {
+    // === USUARIO LOGUEADO ===
+    console.log("Sesion activa de:", user.email, "con UID:", user.uid);
+    
+    // Ocultar formulario de login y mostrar dashboard
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("dashboardScreen").classList.remove("hidden");
+
+    // Iniciar la escucha en tiempo real de los datos del usuario
+    startRealtimeSync(user.uid);
+  } else {
+    // === USUARIO NO LOGUEADO ===
+    console.log("No hay sesion activa.");
+    
+    // Mostrar pantalla de login y ocultar dashboard
+    document.getElementById("loginScreen").classList.remove("hidden");
+    document.getElementById("dashboardScreen").classList.add("hidden");
+  }
+}
+
+---
+
+5. SINCRONIZACION EN TIEMPO REAL (LENTURA Y ESCRITURA)
+========================================================================
+
+A. Leer cambios de la nube a tu aplicacion (Escuchador en vivo):
+------------------------------------------------------------------------
+Usamos '.onSnapshot' para que si modificas un valor en un dispositivo, la pantalla de los demas dispositivos se actualice sola al instante.
+
+let firebaseUnsubscribe = null;
+
+function startRealtimeSync(uid) {
+  if (firebaseUnsubscribe) firebaseUnsubscribe(); // Limpiar escuchas previas
+
+  // Nos suscribimos al documento especifico de este usuario
+  firebaseUnsubscribe = db.collection("users").doc(uid).onSnapshot((doc) => {
+    if (doc.exists) {
+      const userData = doc.data();
+      
+      // 1. Actualizar tu estado local en memoria
+      state.settings = userData.settings || {};
+      state.financeData = userData.financeData || [];
+
+      // 2. Refrescar tu interfaz visual
+      applyTheme(state.settings.theme);
+      renderFinancialTables();
+    } else {
+      // Si el usuario es nuevo, crearle una plantilla base en la nube
+      db.collection("users").doc(uid).set({
+        settings: { theme: "light", currency: "CLP" },
+        financeData: [],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  }, (error) => {
+    console.error("Error en la escucha de base de datos:", error);
+  });
+}
+
+B. Subir cambios locales a la nube (Escritura):
+------------------------------------------------------------------------
+Llama a esta funcion cada vez que el usuario guarde una transaccion o cambie una configuracion en el dashboard:
+
+async function saveConfigToCloud() {
+  const user = firebase.auth().currentUser;
+  if (!user || !db) return;
+
+  try {
+    // Usamos { merge: true } para que solo actualice o agregue los campos enviados 
+    // sin borrar otros campos del documento.
+    await db.collection("users").doc(user.uid).set({
+      settings: state.settings,
+      financeData: state.financeData,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    console.log("Configuracion respaldada en la nube con exito.");
+  } catch (error) {
+    console.error("Error al guardar en la nube:", error);
+  }
+}
+
+---
+
+6. LOGIN DE GOOGLE (GMAIL) Y LOGOUT SEGURO
+========================================================================
+
+A. Iniciar sesion con Google:
+------------------------------------------------------------------------
+const btnGoogle = document.getElementById("btnGoogleLogin");
+
+btnGoogle.addEventListener("click", async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+
+  try {
+    // 1. Intentar con Popup (Ideal para PCs y Tablets)
+    await firebase.auth().signInWithPopup(provider);
+    
+    // 2. Forzar recarga limpia tras login exitoso
+    window.location.reload();
+  } catch (err) {
+    console.warn("Popup bloqueado. Intentando con Redireccion:", err);
+    // 3. Fallback a redireccion si el navegador bloquea ventanas emergentes (moviles)
+    await firebase.auth().signInWithRedirect(provider);
+  }
+});
+
+B. Cerrar sesion de forma segura:
+------------------------------------------------------------------------
+const btnLogout = document.getElementById("btnLogout");
+
+btnLogout.addEventListener("click", async () => {
+  if (confirm("¿Deseas cerrar la sesion de forma segura?")) {
+    try {
+      if (firebaseUnsubscribe) firebaseUnsubscribe(); // Apagar el escuchador
+      await firebase.auth().signOut();
+      
+      // Limpiar datos locales confidenciales
+      localStorage.clear(); 
+      window.location.reload();
+    } catch (err) {
+      console.error("Error al cerrar sesion:", err);
+    }
+  }
+});
+
+---
+
+7. REGLAS DE SEGURIDAD INDISPENSABLES (EN LA CONSOLA)
+========================================================================
+Para proteger informacion confidencial (como finanzas), debes ir a la pestaña "Rules" en Cloud Firestore dentro de la consola de Firebase y publicar la siguiente regla. Evita que terceros lean tus datos:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Coincide con cualquier documento dentro de la coleccion "users"
+    match /users/{userId} {
+      // Permite leer y escribir SOLO si el usuario esta logueado
+      // Y si su ID unico de autenticacion (auth.uid) coincide exactamente con el nombre del documento (userId)
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+
+========================================================================
+¡Listo! Copia este codigo en tu dashboard financiero y tendras sincronizacion por usuario.
+========================================================================
