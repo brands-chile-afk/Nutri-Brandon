@@ -857,6 +857,18 @@ Instrucciones Críticas:
 3. Devuelve ÚNICAMENTE la estructura JSON cruda. No saludes, no te expliques, no uses bloques de código decorativos. Debe ser interpretable directamente por JSON.parse().
 `;
 
+async function handleGeminiResponseError(response) {
+  try {
+    const errorData = await response.json();
+    if (errorData && errorData.error && errorData.error.message) {
+      return new Error(`${errorData.error.message} (HTTP ${response.status})`);
+    }
+  } catch (e) {
+    // Si la respuesta no es JSON, capturar error genérico
+  }
+  return new Error(`Error de red HTTP ${response.status}`);
+}
+
 async function parseMealWithGemini(text) {
   const apiKey = state.settings.geminiApiKey;
   if (!apiKey) {
@@ -886,7 +898,7 @@ async function parseMealWithGemini(text) {
   });
 
   if (!response.ok) {
-    throw new Error("HTTP_ERROR_" + response.status);
+    throw await handleGeminiResponseError(response);
   }
 
   const data = await response.json();
@@ -2447,7 +2459,7 @@ async function generateAiContent(type) {
     renderRecipeResult(result);
   } catch (error) {
     console.error("Error al generar contenido con Gemini:", error);
-    alert("Hubo un error al generar la receta o menú con la IA de Gemini. Por favor verifica tu API Key y conexión.");
+    alert("Hubo un error al generar la receta o menú con la IA de Gemini:\n\n" + error.message + "\n\nPor favor, verifica que tu nueva API Key de Gemini esté guardada correctamente en la pestaña de Ajustes y que tenga los permisos adecuados.");
     loader.classList.add("hidden");
     placeholder.classList.remove("hidden");
   }
@@ -2477,7 +2489,7 @@ async function callGeminiAPI(prompt) {
   });
 
   if (!response.ok) {
-    throw new Error("HTTP_ERROR_" + response.status);
+    throw await handleGeminiResponseError(response);
   }
 
   const data = await response.json();
