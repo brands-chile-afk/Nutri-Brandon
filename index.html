@@ -193,6 +193,14 @@
           <i data-lucide="utensils"></i>
           <span>Comidas</span>
         </button>
+        <button class="nav-link" data-target="history-view" id="nav-btn-history">
+          <i data-lucide="calendar-days"></i>
+          <span>Historial</span>
+        </button>
+        <button class="nav-link" data-target="recipes-view" id="nav-btn-recipes">
+          <i data-lucide="sparkles"></i>
+          <span>Recetas IA</span>
+        </button>
         <button class="nav-link" data-target="inbody-view" id="nav-btn-inbody">
           <i data-lucide="activity"></i>
           <span>InBody y Peso</span>
@@ -897,6 +905,90 @@
         </div>
       </section>
 
+      <!-- VIEW: HISTORY (HISTORIAL) -->
+      <section id="history-view" class="view-pane">
+        <div class="card history-timeline-card">
+          <div class="card-header">
+            <h2 class="card-title">Historial General de Nutrición</h2>
+            <p class="card-subtitle">Explora tus días anteriores y su composición nutricional</p>
+          </div>
+          
+          <div class="history-timeline-container" id="historyTimelineList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: RECIPES (RECETAS IA) -->
+      <section id="recipes-view" class="view-pane">
+        <div class="recipes-layout-grid">
+          
+          <!-- Column 1: Options & Inputs -->
+          <div class="recipes-inputs-col">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Asistente de Menús & Recetas IA</h2>
+                <p class="card-subtitle">Alimentado por Gemini 2.5 Flash</p>
+              </div>
+              
+              <div class="recipes-options-list">
+                <!-- Option 1: Full Daily Menu -->
+                <button type="button" class="btn btn-secondary-outline btn-full-width recipe-option-btn" id="btnAiGenerateMenu">
+                  <i data-lucide="sparkles"></i>
+                  <span>Generar Menú del Día</span>
+                </button>
+                
+                <!-- Option 2: Remaining Macros Recipe -->
+                <button type="button" class="btn btn-secondary-outline btn-full-width recipe-option-btn mt-3" id="btnAiGenerateRemaining">
+                  <i data-lucide="calculator"></i>
+                  <span>Receta con Macros Sobrantes</span>
+                </button>
+                
+                <!-- Option 3: Ingredients Search -->
+                <div class="recipe-ingredients-search mt-4">
+                  <label for="aiRecipeIngredients" class="form-label font-semibold">Receta por Ingredientes</label>
+                  <textarea id="aiRecipeIngredients" placeholder="Ej: Pollo, arroz, palta, espinacas..." class="form-textarea mt-1" rows="2"></textarea>
+                  <button type="button" class="btn btn-primary btn-full-width mt-2" id="btnAiGenerateIngredients">
+                    <i data-lucide="utensils-crossed"></i>
+                    <span>Buscar Receta Inteligente</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Column 2: Results -->
+          <div class="recipes-results-col">
+            <div class="card bg-glass result-card-empty" id="recipeResultContainer">
+              <div class="result-placeholder" id="recipePlaceholder">
+                <div class="gemini-assistant-logo">
+                  <i data-lucide="chef-hat"></i>
+                </div>
+                <h3>Elige una opción a la izquierda</h3>
+                <p>Gemini diseñará una recomendación culinaria de alta gama adaptada a tus objetivos nutricionales.</p>
+              </div>
+              
+              <!-- Loader shimmer animation -->
+              <div class="recipe-loader hidden" id="recipeLoader">
+                <div class="shimmer-card">
+                  <div class="shimmer-title"></div>
+                  <div class="shimmer-line"></div>
+                  <div class="shimmer-line"></div>
+                  <div class="shimmer-circle"></div>
+                </div>
+                <p class="loader-status-text">Cocinando tu receta inteligente...</p>
+              </div>
+              
+              <!-- Real Result Display -->
+              <div class="recipe-content-display hidden" id="recipeContentDisplay">
+                <!-- Populated dynamically by JS -->
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </section>
+
       <!-- VIEW: SETTINGS (AJUSTES) -->
       <section id="settings-view" class="view-pane">
         
@@ -1055,7 +1147,6 @@
 
     </main>
 
-    <!-- Bottom Navigation Bar for Mobile Devices -->
     <nav class="bottom-nav">
       <button class="bottom-nav-link active" data-target="dashboard-view" id="mob-btn-dashboard">
         <i data-lucide="layout-dashboard"></i>
@@ -1064,6 +1155,14 @@
       <button class="bottom-nav-link" data-target="meals-view" id="mob-btn-meals">
         <i data-lucide="utensils"></i>
         <span>Comidas</span>
+      </button>
+      <button class="bottom-nav-link" data-target="history-view" id="mob-btn-history">
+        <i data-lucide="calendar-days"></i>
+        <span>Historial</span>
+      </button>
+      <button class="bottom-nav-link" data-target="recipes-view" id="mob-btn-recipes">
+        <i data-lucide="sparkles"></i>
+        <span>Recetas IA</span>
       </button>
       <button class="bottom-nav-link" data-target="inbody-view" id="mob-btn-inbody">
         <i data-lucide="activity"></i>
@@ -1094,6 +1193,7 @@
       <!-- Tabs within modal -->
       <div class="modal-tabs">
         <button id="tabQuickAdd" class="modal-tab-btn active">Alimentos Rápidos</button>
+        <button id="tabFavoritesAdd" class="modal-tab-btn">Favoritos</button>
         <button id="tabCustomAdd" class="modal-tab-btn">Personalizado</button>
       </div>
 
@@ -1101,6 +1201,14 @@
       <div id="tabContentQuick" class="modal-tab-content active">
         <p class="tab-desc">Alimentos saludables comunes. Haz un toque para agregarlos al instante:</p>
         <div class="quick-foods-grid" id="quickFoodsGridList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Content Tab 2: Favorites List -->
+      <div id="tabContentFavorites" class="modal-tab-content">
+        <p class="tab-desc">Tus comidas frecuentemente guardadas. Haz un toque para agregarlas:</p>
+        <div class="quick-foods-grid" id="favoriteFoodsGridList">
           <!-- Populated by JS -->
         </div>
       </div>

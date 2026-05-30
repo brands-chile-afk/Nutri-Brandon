@@ -16,7 +16,8 @@ const STORAGE_KEYS = {
   SETTINGS: "nutrilife_settings",
   DAILY_LOGS: "nutrilife_daily_logs",
   WEIGHT_HISTORY: "nutrilife_weight_history",
-  INBODY_HISTORY: "nutrilife_inbody_history"
+  INBODY_HISTORY: "nutrilife_inbody_history",
+  FAVORITES: "nutrilife_favorite_foods"
 };
 
 // Alimentos comunes predefinidos (Biblioteca de alimentos rápidos)
@@ -47,7 +48,8 @@ let state = {
   },
   dailyLogs: {}, // Clave: YYYY-MM-DD -> { foods: [], waterConsumed: 0 }
   weightHistory: [], // Lista de { date: "YYYY-MM-DD", weight: 75.4 }
-  inbodyHistory: [] // Lista de InBody objects
+  inbodyHistory: [], // Lista de InBody objects
+  favoriteFoods: [] // Lista de comidas favoritas/predeterminadas
 };
 
 // Generar Datos de Inicio Premium con tus datos reales del CSV de InBody
@@ -100,7 +102,8 @@ function getMockInitialData() {
     },
     dailyLogs: mockDailyLogs,
     weightHistory: weightMock,
-    inbodyHistory: inbodyMock
+    inbodyHistory: inbodyMock,
+    favoriteFoods: []
   };
 }
 
@@ -110,13 +113,15 @@ function initDatabase() {
   const cachedLogs = localStorage.getItem(STORAGE_KEYS.DAILY_LOGS);
   const cachedWeight = localStorage.getItem(STORAGE_KEYS.WEIGHT_HISTORY);
   const cachedInBody = localStorage.getItem(STORAGE_KEYS.INBODY_HISTORY);
+  const cachedFavorites = localStorage.getItem(STORAGE_KEYS.FAVORITES);
 
-  if (cachedSettings || cachedLogs || cachedWeight || cachedInBody) {
+  if (cachedSettings || cachedLogs || cachedWeight || cachedInBody || cachedFavorites) {
     // Cargar datos reales
     if (cachedSettings) state.settings = JSON.parse(cachedSettings);
     if (cachedLogs) state.dailyLogs = JSON.parse(cachedLogs);
     if (cachedWeight) state.weightHistory = JSON.parse(cachedWeight);
     if (cachedInBody) state.inbodyHistory = JSON.parse(cachedInBody);
+    if (cachedFavorites) state.favoriteFoods = JSON.parse(cachedFavorites);
   } else {
     // Cargar datos reales como iniciales
     console.log("Inicializando NutriLife con tus datos reales de InBody...");
@@ -160,6 +165,7 @@ function saveStateToLocalStorage() {
   localStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(state.dailyLogs));
   localStorage.setItem(STORAGE_KEYS.WEIGHT_HISTORY, JSON.stringify(state.weightHistory));
   localStorage.setItem(STORAGE_KEYS.INBODY_HISTORY, JSON.stringify(state.inbodyHistory));
+  localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(state.favoriteFoods || []));
 
   // Sincronizar asíncronamente con la nube si hay inicio de sesión y no estamos ya sincronizando
   if (isFirebaseConnected && firebase.auth().currentUser && !isCloudSyncing) {
@@ -190,6 +196,7 @@ async function saveDataToCloudSync() {
       dailyLogs: state.dailyLogs,
       weightHistory: state.weightHistory,
       inbodyHistory: state.inbodyHistory,
+      favoriteFoods: state.favoriteFoods || [],
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
@@ -261,6 +268,10 @@ function switchTab(targetViewId) {
     renderInbodyView();
   } else if (targetViewId === "meals-view") {
     renderMealsView();
+  } else if (targetViewId === "history-view") {
+    renderHistoryView();
+  } else if (targetViewId === "recipes-view") {
+    initRecipesView();
   } else if (targetViewId === "settings-view") {
     populateSettingsInputs();
   }
@@ -408,6 +419,7 @@ function initMealsNavigation() {
   
   // Tabs del modal
   document.getElementById("tabQuickAdd").addEventListener("click", () => switchModalTab("quick"));
+  document.getElementById("tabFavoritesAdd").addEventListener("click", () => switchModalTab("favorites"));
   document.getElementById("tabCustomAdd").addEventListener("click", () => switchModalTab("custom"));
 
   // Formulario personalizado
@@ -477,6 +489,7 @@ function renderMealsView() {
     } else {
       listElement.innerHTML = "";
       foods.forEach(food => {
+        const isFav = state.favoriteFoods && state.favoriteFoods.some(f => f.nombre.toLowerCase() === food.nombre.toLowerCase());
         const row = document.createElement("div");
         row.className = "food-item-row";
         row.innerHTML = `
@@ -490,12 +503,20 @@ function renderMealsView() {
           </div>
           <div class="food-kcal-delete">
             <span class="food-kcal">${Math.round(food.calorias)} kcal</span>
+            <button class="btn-food-favorite ${isFav ? 'active' : ''}" data-id="${food.id}" title="${isFav ? 'Quitar de favoritos' : 'Guardar como favorito'}">
+              <i data-lucide="star"></i>
+            </button>
             <button class="btn-food-delete" data-id="${food.id}" title="Eliminar alimento">
               <i data-lucide="trash-2"></i>
             </button>
           </div>
         `;
         listElement.appendChild(row);
+        
+        // Evento de favorito
+        row.querySelector(".btn-food-favorite").addEventListener("click", () => {
+          toggleFavoriteFood(food);
+        });
         
         // Evento de eliminar
         row.querySelector(".btn-food-delete").addEventListener("click", () => {
@@ -546,8 +567,9 @@ function openFoodModal(category) {
   // Limpiar formulario manual
   document.getElementById("customFoodForm").reset();
   
-  // Cargar alimentos rápidos
+  // Cargar alimentos rápidos y favoritos
   renderQuickFoodsList();
+  renderFavoriteFoodsList();
 
   // Abrir modal
   document.getElementById("addFoodModal").classList.remove("hidden");
@@ -560,19 +582,25 @@ function closeFoodModal() {
 
 function switchModalTab(tab) {
   const tabQuick = document.getElementById("tabQuickAdd");
+  const tabFavorites = document.getElementById("tabFavoritesAdd");
   const tabCustom = document.getElementById("tabCustomAdd");
   const contentQuick = document.getElementById("tabContentQuick");
+  const contentFavorites = document.getElementById("tabContentFavorites");
   const contentCustom = document.getElementById("tabContentCustom");
+
+  // Reset active classes
+  [tabQuick, tabFavorites, tabCustom].forEach(btn => btn.classList.remove("active"));
+  [contentQuick, contentFavorites, contentCustom].forEach(cnt => cnt.classList.remove("active"));
 
   if (tab === "quick") {
     tabQuick.classList.add("active");
-    tabCustom.classList.remove("active");
     contentQuick.classList.add("active");
-    contentCustom.classList.remove("active");
+  } else if (tab === "favorites") {
+    tabFavorites.classList.add("active");
+    contentFavorites.classList.add("active");
+    renderFavoriteFoodsList(); // Refrescar la lista de favoritos al cambiar
   } else {
-    tabQuick.classList.remove("active");
     tabCustom.classList.add("active");
-    contentQuick.classList.remove("active");
     contentCustom.classList.add("active");
   }
 }
@@ -610,6 +638,87 @@ function renderQuickFoodsList() {
     grid.appendChild(card);
   });
 }
+
+function toggleFavoriteFood(food) {
+  if (!state.favoriteFoods) state.favoriteFoods = [];
+  const index = state.favoriteFoods.findIndex(f => f.nombre.toLowerCase() === food.nombre.toLowerCase());
+  if (index > -1) {
+    state.favoriteFoods.splice(index, 1);
+  } else {
+    state.favoriteFoods.push({
+      id: Date.now() + Math.floor(Math.random() * 100),
+      nombre: food.nombre,
+      calorias: food.calorias,
+      proteinas: food.proteinas,
+      carbohidratos: food.carbohidratos,
+      grasas: food.grasas
+    });
+  }
+  saveStateToLocalStorage();
+  saveDataToCloudSync();
+  renderMealsView();
+}
+
+function renderFavoriteFoodsList() {
+  const grid = document.getElementById("favoriteFoodsGridList");
+  if (!grid) return;
+  grid.innerHTML = "";
+  
+  if (!state.favoriteFoods || state.favoriteFoods.length === 0) {
+    grid.innerHTML = `<p class="empty-list-placeholder" style="grid-column: 1 / -1; text-align: center; padding: 2rem 1rem; width: 100%;">No tienes alimentos favoritos guardados. ¡Haz clic en la estrella de tus comidas para guardarlas!</p>`;
+    return;
+  }
+  
+  state.favoriteFoods.forEach(food => {
+    const cardWrapper = document.createElement("div");
+    cardWrapper.className = "favorite-food-card-wrapper";
+    
+    cardWrapper.innerHTML = `
+      <button type="button" class="quick-food-card btn-favorite-add-action" style="width: 100%; text-align: left;">
+        <span class="qf-name">${food.nombre}</span>
+        <span class="qf-kcal">${Math.round(food.calorias)} kcal</span>
+        <span class="qf-macros">P: ${Math.round(food.proteinas)}g | C: ${Math.round(food.carbohidratos)}g | G: ${Math.round(food.grasas)}g</span>
+      </button>
+      <button type="button" class="btn-favorite-delete" title="Eliminar de favoritos">
+        <i data-lucide="trash-2"></i>
+      </button>
+    `;
+    
+    cardWrapper.querySelector(".btn-favorite-add-action").addEventListener("click", () => {
+      const dateStr = getFormattedDateString(mealsActiveDate);
+      const newFood = {
+        id: Date.now() + Math.floor(Math.random() * 100),
+        nombre: food.nombre,
+        calorias: food.calorias,
+        proteinas: food.proteinas,
+        carbohidratos: food.carbohidratos,
+        grasas: food.grasas,
+        categoria: activeModalCategory
+      };
+      addFoodItem(dateStr, newFood);
+      closeFoodModal();
+    });
+    
+    cardWrapper.querySelector(".btn-favorite-delete").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const index = state.favoriteFoods.findIndex(f => f.id === food.id);
+      if (index > -1) {
+        state.favoriteFoods.splice(index, 1);
+        saveStateToLocalStorage();
+        saveDataToCloudSync();
+        renderFavoriteFoodsList();
+        renderMealsView();
+      }
+    });
+    
+    grid.appendChild(cardWrapper);
+  });
+  
+  if (typeof lucide !== "undefined") {
+    lucide.createIcons();
+  }
+}
+
 
 function handleCustomFoodSubmit(e) {
   e.preventDefault();
@@ -1919,18 +2028,21 @@ function startRealtimeCloudSync(uid) {
       if (cloudData.dailyLogs) state.dailyLogs = cloudData.dailyLogs;
       if (cloudData.weightHistory) state.weightHistory = cloudData.weightHistory;
       if (cloudData.inbodyHistory) state.inbodyHistory = cloudData.inbodyHistory;
+      if (cloudData.favoriteFoods) state.favoriteFoods = cloudData.favoriteFoods;
 
       // Guardar localmente
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
       localStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(state.dailyLogs));
       localStorage.setItem(STORAGE_KEYS.WEIGHT_HISTORY, JSON.stringify(state.weightHistory));
       localStorage.setItem(STORAGE_KEYS.INBODY_HISTORY, JSON.stringify(state.inbodyHistory));
+      localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(state.favoriteFoods || []));
 
       // Actualizar visualizaciones
       if (activeView === "dashboard-view") renderDashboard();
       if (activeView === "meals-view") renderMealsView();
       if (activeView === "inbody-view") renderInbodyView();
       if (activeView === "settings-view") populateSettingsInputs();
+      if (activeView === "history-view") renderHistoryView();
       
       // Aplicar tema dinámicamente si cambió externamente
       applyTheme(state.settings.theme || "light");
@@ -1941,6 +2053,7 @@ function startRealtimeCloudSync(uid) {
         dailyLogs: state.dailyLogs,
         weightHistory: state.weightHistory,
         inbodyHistory: state.inbodyHistory,
+        favoriteFoods: state.favoriteFoods || [],
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }
@@ -1955,3 +2068,688 @@ function startRealtimeCloudSync(uid) {
     iconError.classList.remove("hidden");
   });
 }
+
+function renderHistoryView() {
+  const container = document.getElementById("historyTimelineList");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  const dates = Object.keys(state.dailyLogs).sort().reverse();
+  
+  if (dates.length === 0) {
+    container.innerHTML = `<p class="timeline-empty-day-text">No hay días registrados en tu historial de alimentación todavía.</p>`;
+    return;
+  }
+  
+  dates.forEach(dateStr => {
+    const log = state.dailyLogs[dateStr];
+    // Ignorar días sin comidas ni agua
+    if ((!log.foods || log.foods.length === 0) && !log.waterConsumed) {
+      return;
+    }
+    
+    // Calcular totales de macros del día
+    const totalKcal = Math.round(log.foods ? log.foods.reduce((sum, f) => sum + f.calorias, 0) : 0);
+    const totalP = Math.round(log.foods ? log.foods.reduce((sum, f) => sum + f.proteinas, 0) : 0);
+    const totalC = Math.round(log.foods ? log.foods.reduce((sum, f) => sum + f.carbohidratos, 0) : 0);
+    const totalG = Math.round(log.foods ? log.foods.reduce((sum, f) => sum + f.grasas, 0) : 0);
+    const totalW = log.waterConsumed || 0;
+    
+    // Metas
+    const calGoal = state.settings.caloriesTarget || 2000;
+    const pGoal = state.settings.proteinTarget || 140;
+    const cGoal = state.settings.carbsTarget || 200;
+    const fGoal = state.settings.fatsTarget || 65;
+    const wGoal = state.settings.waterTarget || 2500;
+    
+    // Porcentajes
+    const pctCal = Math.min(100, Math.round((totalKcal / calGoal) * 100)) || 0;
+    const pctP = Math.min(100, Math.round((totalP / pGoal) * 100)) || 0;
+    const pctC = Math.min(100, Math.round((totalC / cGoal) * 100)) || 0;
+    const pctG = Math.min(100, Math.round((totalG / fGoal) * 100)) || 0;
+    const pctW = Math.min(100, Math.round((totalW / wGoal) * 100)) || 0;
+    
+    const dayItem = document.createElement("div");
+    dayItem.className = "timeline-day-item";
+    
+    // Parsear fecha legible
+    let dateLabel = dateStr;
+    try {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      const todayStr = getFormattedDateString(new Date());
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = getFormattedDateString(yesterday);
+      
+      if (dateStr === todayStr) {
+        dateLabel = "Hoy";
+      } else if (dateStr === yesterdayStr) {
+        dateLabel = "Ayer";
+      } else {
+        const option = { weekday: 'long', day: 'numeric', month: 'short' };
+        dateLabel = dateObj.toLocaleDateString("es-ES", option);
+        dateLabel = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
+      }
+    } catch (e) {
+      console.error("Error al formatear fecha de historial:", e);
+    }
+    
+    dayItem.innerHTML = `
+      <div class="timeline-day-header">
+        <span class="timeline-day-title">${dateLabel}</span>
+        <div class="timeline-day-actions">
+          <button type="button" class="btn-timeline-load" data-date="${dateStr}">Cargar Día</button>
+          <div class="timeline-toggle-icon">
+            <i data-lucide="chevron-down"></i>
+          </div>
+        </div>
+      </div>
+      
+      <div class="timeline-day-summary">
+        <div class="timeline-macro-stat">
+          <span class="timeline-stat-label">Calorías</span>
+          <span class="timeline-stat-val text-purple">${totalKcal} / ${calGoal} kcal</span>
+          <div class="timeline-progress-mini">
+            <div class="timeline-progress-fill" style="width: ${pctCal}%; background-color: var(--accent-purple);"></div>
+          </div>
+        </div>
+        <div class="timeline-macro-stat">
+          <span class="timeline-stat-label">Proteína</span>
+          <span class="timeline-stat-val text-emerald">${totalP}g / ${pGoal}g</span>
+          <div class="timeline-progress-mini">
+            <div class="timeline-progress-fill" style="width: ${pctP}%; background-color: var(--accent-protein);"></div>
+          </div>
+        </div>
+        <div class="timeline-macro-stat">
+          <span class="timeline-stat-label">Carbos</span>
+          <span class="timeline-stat-val text-orange">${totalC}g / ${cGoal}g</span>
+          <div class="timeline-progress-mini">
+            <div class="timeline-progress-fill" style="width: ${pctC}%; background-color: var(--accent-carbs);"></div>
+          </div>
+        </div>
+        <div class="timeline-macro-stat">
+          <span class="timeline-stat-label">Grasas</span>
+          <span class="timeline-stat-val text-pink">${totalG}g / ${fGoal}g</span>
+          <div class="timeline-progress-mini">
+            <div class="timeline-progress-fill" style="width: ${pctG}%; background-color: var(--accent-fats);"></div>
+          </div>
+        </div>
+        <div class="timeline-macro-stat">
+          <span class="timeline-stat-label">Agua</span>
+          <span class="timeline-stat-val text-blue">${totalW}ml / ${wGoal}ml</span>
+          <div class="timeline-progress-mini">
+            <div class="timeline-progress-fill" style="width: ${pctW}%; background-color: var(--accent-water);"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="timeline-day-details">
+        <div class="timeline-meals-list">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    `;
+    
+    // Rellenar lista de comidas por categoría
+    const mealsList = dayItem.querySelector(".timeline-meals-list");
+    const categories = ["Desayuno", "Almuerzo", "Cena", "Snack"];
+    let hasAnyFood = false;
+    
+    categories.forEach(cat => {
+      const catFoods = log.foods ? log.foods.filter(f => f.categoria === cat) : [];
+      if (catFoods.length > 0) {
+        hasAnyFood = true;
+        const group = document.createElement("div");
+        group.className = "timeline-meal-cat-group";
+        
+        let catIcon = "coffee";
+        if (cat === "Almuerzo") catIcon = "utensils";
+        if (cat === "Cena") catIcon = "moon";
+        if (cat === "Snack") catIcon = "apple";
+        
+        let catTitleHtml = `
+          <div class="timeline-meal-cat-title">
+            <i data-lucide="${catIcon}" style="width: 14px; height: 14px;"></i>
+            <span>${cat === "Snack" ? "Snacks" : cat}</span>
+          </div>
+        `;
+        
+        let foodsHtml = `<div class="timeline-meal-foods">`;
+        catFoods.forEach(food => {
+          foodsHtml += `<span class="timeline-food-tag">${food.nombre} (${Math.round(food.calorias)} kcal &middot; P: ${Math.round(food.proteinas)}g)</span>`;
+        });
+        foodsHtml += `</div>`;
+        
+        group.innerHTML = catTitleHtml + foodsHtml;
+        mealsList.appendChild(group);
+      }
+    });
+    
+    if (!hasAnyFood) {
+      mealsList.innerHTML = `<p class="timeline-empty-day-text">No se registraron alimentos (solo agua).</p>`;
+    }
+    
+    // Toggle expandir
+    const header = dayItem.querySelector(".timeline-day-header");
+    header.addEventListener("click", (e) => {
+      // Evitar que haga toggle si hicieron clic en el botón de Cargar Día
+      if (e.target.classList.contains("btn-timeline-load")) return;
+      dayItem.classList.toggle("expanded");
+    });
+    
+    // Botón de Cargar Día
+    const loadBtn = dayItem.querySelector(".btn-timeline-load");
+    loadBtn.addEventListener("click", () => {
+      const targetDateStr = loadBtn.getAttribute("data-date");
+      const [y, m, d] = targetDateStr.split("-").map(Number);
+      mealsActiveDate = new Date(y, m - 1, d);
+      syncActiveDateUI();
+      switchTab("meals-view");
+    });
+    
+    container.appendChild(dayItem);
+  });
+  
+  if (typeof lucide !== "undefined") {
+    lucide.createIcons();
+  }
+}
+
+let currentGeneratedRecipe = null;
+let currentGeneratedMenu = null;
+
+function initRecipesView() {
+  if (window.recipesViewInitialized) return;
+  window.recipesViewInitialized = true;
+
+  document.getElementById("btnAiGenerateMenu").addEventListener("click", () => generateAiContent("menu"));
+  document.getElementById("btnAiGenerateRemaining").addEventListener("click", () => generateAiContent("remaining"));
+  document.getElementById("btnAiGenerateIngredients").addEventListener("click", () => generateAiContent("ingredients"));
+}
+
+async function generateAiContent(type) {
+  const apiKey = state.settings.geminiApiKey;
+  if (!apiKey) {
+    alert("Por favor configure su Gemini API Key en la pestaña de Ajustes primero.");
+    switchTab("settings-view");
+    return;
+  }
+
+  const placeholder = document.getElementById("recipePlaceholder");
+  const loader = document.getElementById("recipeLoader");
+  const display = document.getElementById("recipeContentDisplay");
+
+  placeholder.classList.add("hidden");
+  display.classList.add("hidden");
+  loader.classList.remove("hidden");
+  
+  // Custom loader messages based on action
+  const statusText = loader.querySelector(".loader-status-text");
+  if (type === "menu") statusText.innerText = "Diseñando un menú diario balanceado...";
+  else if (type === "remaining") statusText.innerText = "Calculando receta para tus macros sobrantes...";
+  else statusText.innerText = "Creando una receta gourmet con tus ingredientes...";
+
+  try {
+    let prompt = "";
+    if (type === "menu") {
+      const calGoal = state.settings.caloriesTarget || 2000;
+      const pGoal = state.settings.proteinTarget || 140;
+      const cGoal = state.settings.carbsTarget || 200;
+      const fGoal = state.settings.fatsTarget || 65;
+      
+      prompt = `Diseña un menú diario completo y premium en español para un usuario con las siguientes metas diarias de nutrición:
+      - Calorías objetivo: ${calGoal} kcal
+      - Proteínas objetivo: ${pGoal}g
+      - Carbohidratos objetivo: ${cGoal}g
+      - Grasas objetivo: ${fGoal}g
+      
+      El menú debe constar de exactamente 4 comidas: "Desayuno", "Almuerzo", "Cena", y "Snack".
+      Asegúrate de que cada comida tenga una descripción premium, ingredientes y macronutrientes realistas y coherentes.
+      
+      Devuelve un objeto JSON estructurado exactamente así:
+      {
+        "tipo": "menu",
+        "titulo": "Menú Diario Premium Inteligente",
+        "descripcion": "Una breve descripción del enfoque nutricional de este menú.",
+        "caloriasTotales": ${calGoal},
+        "proteinasTotales": ${pGoal},
+        "carbohidratosTotales": ${cGoal},
+        "grasasTotales": ${fGoal},
+        "comidas": [
+          {
+            "categoria": "Desayuno",
+            "nombre": "Nombre gourmet del desayuno",
+            "calorias": 450,
+            "proteinas": 30,
+            "carbohidratos": 60,
+            "grasas": 12,
+            "detalles": "Detalles del plato, ingredientes principales y una pequeña descripción."
+          },
+          {
+            "categoria": "Almuerzo",
+            "nombre": "Nombre gourmet del almuerzo",
+            "calorias": 650,
+            "proteinas": 45,
+            "carbohidratos": 60,
+            "grasas": 18,
+            "detalles": "Detalles..."
+          },
+          {
+            "categoria": "Cena",
+            "nombre": "Nombre gourmet de la cena",
+            "calorias": 550,
+            "proteinas": 40,
+            "carbohidratos": 45,
+            "grasas": 15,
+            "detalles": "Detalles..."
+          },
+          {
+            "categoria": "Snack",
+            "nombre": "Nombre gourmet del snack",
+            "calorias": 350,
+            "proteinas": 25,
+            "carbohidratos": 45,
+            "grasas": 20,
+            "detalles": "Detalles..."
+          }
+        ]
+      }
+      Devuelve estrictamente el JSON sin formato de código markdown o textos extras.`;
+    } else if (type === "remaining") {
+      const dateStr = getFormattedDateString(mealsActiveDate);
+      const log = getDayLog(dateStr);
+      
+      const consumedKcal = Math.round(log.foods.reduce((sum, f) => sum + f.calorias, 0));
+      const consumedP = Math.round(log.foods.reduce((sum, f) => sum + f.proteinas, 0));
+      const consumedC = Math.round(log.foods.reduce((sum, f) => sum + f.carbohidratos, 0));
+      const consumedG = Math.round(log.foods.reduce((sum, f) => sum + f.grasas, 0));
+      
+      const calGoal = state.settings.caloriesTarget || 2000;
+      const pGoal = state.settings.proteinTarget || 140;
+      const cGoal = state.settings.carbsTarget || 200;
+      const fGoal = state.settings.fatsTarget || 65;
+      
+      const remainingKcal = Math.max(150, calGoal - consumedKcal);
+      const remainingP = Math.max(10, pGoal - consumedP);
+      const remainingC = Math.max(10, cGoal - consumedC);
+      const remainingG = Math.max(5, fGoal - consumedG);
+      
+      prompt = `Crea una receta gourmet en español que se ajuste perfectamente a los siguientes macronutrientes restantes para el día del usuario:
+      - Calorías restantes: ${remainingKcal} kcal
+      - Proteínas restantes: ${remainingP}g
+      - Carbohidratos restantes: ${remainingC}g
+      - Grasas restantes: ${remainingG}g
+      
+      Devuelve un objeto JSON estructurado exactamente así:
+      {
+        "tipo": "receta",
+        "titulo": "Nombre creativo gourmet de la receta",
+        "calorias": ${remainingKcal},
+        "proteinas": ${remainingP},
+        "carbohidratos": ${remainingC},
+        "grasas": ${remainingG},
+        "descripcion": "Explicación de por qué este plato equilibra perfectamente tus metas de hoy.",
+        "tiempoPreparacion": "25 min",
+        "dificultad": "Fácil",
+        "ingredientes": [
+          "Ingrediente 1 con su porción o gramaje sugerido",
+          "Ingrediente 2...",
+          ...
+        ],
+        "preparacion": [
+          "Paso 1 de preparación...",
+          "Paso 2...",
+          ...
+        ]
+      }
+      Devuelve estrictamente el JSON sin formato de código markdown o textos extras.`;
+    } else {
+      const ingredientsText = document.getElementById("aiRecipeIngredients").value.trim();
+      if (!ingredientsText) {
+        alert("Por favor ingresa algunos ingredientes en el cuadro de búsqueda.");
+        loader.classList.add("hidden");
+        placeholder.classList.remove("hidden");
+        return;
+      }
+      
+      prompt = `Crea una receta de alta cocina saludable en español utilizando preferentemente los siguientes ingredientes o combinándolos de forma lógica y sabrosa: "${ingredientsText}".
+      
+      Devuelve un objeto JSON estructurado exactamente así:
+      {
+        "tipo": "receta",
+        "titulo": "Nombre creativo gourmet de la receta",
+        "calorias": 450,
+        "proteinas": 30,
+        "carbohidratos": 45,
+        "grasas": 15,
+        "descripcion": "Descripción del plato y cómo aprovecha los ingredientes aportados.",
+        "tiempoPreparacion": "20 min",
+        "dificultad": "Media",
+        "ingredientes": [
+          "Ingrediente 1 con su porción sugerida",
+          "Ingrediente 2...",
+          ...
+        ],
+        "preparacion": [
+          "Paso 1 de preparación...",
+          "Paso 2...",
+          ...
+        ]
+      }
+      Devuelve estrictamente el JSON sin formato de código markdown o textos extras.`;
+    }
+
+    const result = await callGeminiAPI(prompt);
+    renderRecipeResult(result);
+  } catch (error) {
+    console.error("Error al generar contenido con Gemini:", error);
+    alert("Hubo un error al generar la receta o menú con la IA de Gemini. Por favor verifica tu API Key y conexión.");
+    loader.classList.add("hidden");
+    placeholder.classList.remove("hidden");
+  }
+}
+
+async function callGeminiAPI(prompt) {
+  const apiKey = state.settings.geminiApiKey;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  
+  const payload = {
+    contents: [
+      {
+        parts: [
+          { text: prompt }
+        ]
+      }
+    ],
+    generationConfig: {
+      responseMimeType: "application/json"
+    }
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error("HTTP_ERROR_" + response.status);
+  }
+
+  const data = await response.json();
+  let jsonStringResult = data.candidates[0].content.parts[0].text;
+  
+  if (jsonStringResult.includes("```json")) {
+    jsonStringResult = jsonStringResult.split("```json")[1].split("```")[0].trim();
+  } else if (jsonStringResult.includes("```")) {
+    jsonStringResult = jsonStringResult.split("```")[1].split("```")[0].trim();
+  }
+  
+  return JSON.parse(jsonStringResult);
+}
+
+function renderRecipeResult(data) {
+  const loader = document.getElementById("recipeLoader");
+  const display = document.getElementById("recipeContentDisplay");
+  
+  loader.classList.add("hidden");
+  display.classList.remove("hidden");
+  display.innerHTML = "";
+  
+  if (data.tipo === "receta") {
+    currentGeneratedRecipe = data;
+    currentGeneratedMenu = null;
+    
+    const time = data.tiempoPreparacion || "25 min";
+    const difficulty = data.dificultad || "Fácil";
+    
+    display.innerHTML = `
+      <div class="recipe-header-card">
+        <h3 class="recipe-title-ia">${data.titulo}</h3>
+        <p class="card-subtitle" style="margin-top: 0.25rem;">${data.descripcion}</p>
+        
+        <div class="recipe-meta-badges">
+          <span class="recipe-badge recipe-badge-time">
+            <i data-lucide="clock"></i>
+            <span>${time}</span>
+          </span>
+          <span class="recipe-badge recipe-badge-difficulty">
+            <i data-lucide="award"></i>
+            <span>${difficulty}</span>
+          </span>
+        </div>
+      </div>
+      
+      <div class="recipe-macros-strip">
+        <div class="rm-item">
+          <span class="rm-label">Calorías</span>
+          <span class="rm-val kcal">${Math.round(data.calorias)} kcal</span>
+        </div>
+        <div class="rm-item">
+          <span class="rm-label">Proteínas</span>
+          <span class="rm-val prot">${Math.round(data.proteinas)}g</span>
+        </div>
+        <div class="rm-item">
+          <span class="rm-label">Carbos</span>
+          <span class="rm-val carb">${Math.round(data.carbohidratos)}g</span>
+        </div>
+        <div class="rm-item">
+          <span class="rm-label">Grasas</span>
+          <span class="rm-val gras">${Math.round(data.grasas)}g</span>
+        </div>
+      </div>
+      
+      <div>
+        <div class="recipe-section-title">
+          <i data-lucide="shopping-bag"></i>
+          <span>Ingredientes</span>
+        </div>
+        <div class="recipe-ingredients-checklist">
+          ${data.ingredientes.map((ing, i) => `
+            <label class="recipe-ingredient-item">
+              <input type="checkbox">
+              <span>${ing}</span>
+            </label>
+          `).join("")}
+        </div>
+      </div>
+      
+      <div>
+        <div class="recipe-section-title">
+          <i data-lucide="chef-hat"></i>
+          <span>Preparación</span>
+        </div>
+        <div class="recipe-prep-steps">
+          ${data.preparacion.map((step, idx) => `
+            <div class="recipe-step-item">
+              <span class="recipe-step-num">${idx + 1}</span>
+              <span class="recipe-step-text">${step}</span>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+      
+      <div class="recipe-action-footer">
+        <span class="recipe-action-label">¿Deseas añadir esta receta a tu diario de comidas?</span>
+        <div class="recipe-add-btns">
+          <button type="button" class="btn-recipe-add-journal" data-category="Desayuno">
+            <i data-lucide="coffee"></i>
+            <span>Desayuno</span>
+          </button>
+          <button type="button" class="btn-recipe-add-journal" data-category="Almuerzo">
+            <i data-lucide="utensils"></i>
+            <span>Almuerzo</span>
+          </button>
+          <button type="button" class="btn-recipe-add-journal" data-category="Cena">
+            <i data-lucide="moon"></i>
+            <span>Cena</span>
+          </button>
+          <button type="button" class="btn-recipe-add-journal" data-category="Snack">
+            <i data-lucide="apple"></i>
+            <span>Snack</span>
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Add event listeners to category buttons
+    const addBtns = display.querySelectorAll(".btn-recipe-add-journal");
+    addBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const cat = btn.getAttribute("data-category");
+        addGeneratedRecipeToJournal(cat);
+      });
+    });
+    
+  } else if (data.tipo === "menu") {
+    currentGeneratedMenu = data;
+    currentGeneratedRecipe = null;
+    
+    display.innerHTML = `
+      <div class="recipe-header-card">
+        <h3 class="recipe-title-ia">${data.titulo}</h3>
+        <p class="card-subtitle" style="margin-top: 0.25rem;">${data.descripcion}</p>
+      </div>
+      
+      <div class="recipe-macros-strip">
+        <div class="rm-item">
+          <span class="rm-label">Total Kcal</span>
+          <span class="rm-val kcal">${Math.round(data.caloriasTotales)} kcal</span>
+        </div>
+        <div class="rm-item">
+          <span class="rm-label">Proteínas</span>
+          <span class="rm-val prot">${Math.round(data.proteinasTotales)}g</span>
+        </div>
+        <div class="rm-item">
+          <span class="rm-label">Carbos</span>
+          <span class="rm-val carb">${Math.round(data.carbohidratosTotales)}g</span>
+        </div>
+        <div class="rm-item">
+          <span class="rm-label">Grasas</span>
+          <span class="rm-val gras">${Math.round(data.grasasTotales)}g</span>
+        </div>
+      </div>
+      
+      <div class="recipes-daily-menu">
+        <div class="recipe-section-title">
+          <i data-lucide="calendar"></i>
+          <span>Distribución de Comidas</span>
+        </div>
+        
+        ${data.comidas.map((meal, idx) => {
+          let icon = "coffee";
+          if (meal.categoria === "Almuerzo") icon = "utensils";
+          if (meal.categoria === "Cena") icon = "moon";
+          if (meal.categoria === "Snack") icon = "apple";
+          
+          return `
+            <div class="recipe-menu-card">
+              <div class="recipe-menu-card-header">
+                <span class="recipe-menu-category">
+                  <i data-lucide="${icon}" style="width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+                  ${meal.categoria}
+                </span>
+                <span class="text-purple font-semibold text-xs">${Math.round(meal.calorias)} kcal</span>
+              </div>
+              <h4 class="recipe-menu-title">${meal.nombre}</h4>
+              <p class="text-sm mt-1" style="color: var(--text-secondary); line-height: 1.4;">${meal.detalles}</p>
+              <div class="mt-2 text-xs font-medium" style="color: var(--text-muted);">
+                P: ${Math.round(meal.proteinas)}g &middot; C: ${Math.round(meal.carbohidratos)}g &middot; G: ${Math.round(meal.grasas)}g
+              </div>
+              <div class="mt-3 flex justify-end">
+                <button type="button" class="btn-recipe-add-journal btn-add-menu-meal-to-journal" data-index="${idx}">
+                  <i data-lucide="plus" style="width:12px; height:12px;"></i>
+                  <span>Añadir a ${meal.categoria}</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+      
+      <div class="recipe-action-footer mt-4">
+        <span class="recipe-action-label">¿Deseas registrar todo el menú completo en tu diario?</span>
+        <button type="button" class="btn btn-primary btn-full-width" id="btnAiAddEntireMenuToJournal">
+          <i data-lucide="check-square"></i>
+          <span>Registrar Menú Diario Completo</span>
+        </button>
+      </div>
+    `;
+    
+    // Individual meals listeners
+    const individualBtns = display.querySelectorAll(".btn-add-menu-meal-to-journal");
+    individualBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.getAttribute("data-index"));
+        addMenuMealToJournal(idx);
+      });
+    });
+    
+    // Entire menu listener
+    document.getElementById("btnAiAddEntireMenuToJournal").addEventListener("click", addEntireMenuToJournal);
+  }
+  
+  if (typeof lucide !== "undefined") {
+    lucide.createIcons();
+  }
+}
+
+function addGeneratedRecipeToJournal(category) {
+  if (!currentGeneratedRecipe) return;
+  const dateStr = getFormattedDateString(mealsActiveDate);
+  
+  const newFood = {
+    id: Date.now(),
+    nombre: currentGeneratedRecipe.titulo,
+    calorias: currentGeneratedRecipe.calorias,
+    proteinas: currentGeneratedRecipe.proteinas,
+    carbohidratos: currentGeneratedRecipe.carbohidratos,
+    grasas: currentGeneratedRecipe.grasas,
+    categoria: category
+  };
+  
+  addFoodItem(dateStr, newFood);
+  alert(`"${currentGeneratedRecipe.titulo}" agregada con éxito a tu ${category.toLowerCase()}.`);
+}
+
+function addMenuMealToJournal(index) {
+  if (!currentGeneratedMenu || !currentGeneratedMenu.comidas[index]) return;
+  const meal = currentGeneratedMenu.comidas[index];
+  const dateStr = getFormattedDateString(mealsActiveDate);
+  
+  const newFood = {
+    id: Date.now() + Math.floor(Math.random() * 100),
+    nombre: meal.nombre,
+    calorias: meal.calorias,
+    proteinas: meal.proteinas,
+    carbohidratos: meal.carbohidratos,
+    grasas: meal.grasas,
+    categoria: meal.categoria
+  };
+  
+  addFoodItem(dateStr, newFood);
+  alert(`"${meal.nombre}" añadida a tu ${meal.categoria.toLowerCase()}.`);
+}
+
+function addEntireMenuToJournal() {
+  if (!currentGeneratedMenu) return;
+  const dateStr = getFormattedDateString(mealsActiveDate);
+  
+  currentGeneratedMenu.comidas.forEach((meal, idx) => {
+    const newFood = {
+      id: Date.now() + idx + Math.floor(Math.random() * 100),
+      nombre: meal.nombre,
+      calorias: meal.calorias,
+      proteinas: meal.proteinas,
+      carbohidratos: meal.carbohidratos,
+      grasas: meal.grasas,
+      categoria: meal.categoria
+    };
+    addFoodItem(dateStr, newFood);
+  });
+  
+  alert("Todo el menú diario ha sido registrado exitosamente en tu diario de comidas.");
+}
+
+
