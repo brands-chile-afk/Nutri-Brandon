@@ -1193,19 +1193,115 @@
       <!-- Tabs within modal -->
       <div class="modal-tabs">
         <button id="tabQuickAdd" class="modal-tab-btn active">Alimentos Rápidos</button>
+        <button id="tabPreparationsAdd" class="modal-tab-btn">Mis Preparaciones</button>
         <button id="tabFavoritesAdd" class="modal-tab-btn">Favoritos</button>
         <button id="tabCustomAdd" class="modal-tab-btn">Personalizado</button>
       </div>
 
       <!-- Content Tab 1: Quick Add List -->
       <div id="tabContentQuick" class="modal-tab-content active">
-        <p class="tab-desc">Alimentos saludables comunes. Haz un toque para agregarlos al instante:</p>
-        <div class="quick-foods-grid" id="quickFoodsGridList">
-          <!-- Populated by JS -->
+        <div id="quickFoodsLibraryContainer">
+          <p class="tab-desc">Alimentos saludables comunes. Haz un toque para regular la porción:</p>
+          <div class="quick-foods-grid" id="quickFoodsGridList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        
+        <!-- Panel de Ajuste de Peso/Porción (Oculto por defecto) -->
+        <div id="quickFoodWeightSelector" class="hidden" style="padding: 0.5rem 0;">
+          <button type="button" id="btnBackToQuickLibrary" class="btn-timeline-load mb-3" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+            <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Volver a la lista
+          </button>
+          <h4 id="selectorFoodName" class="font-bold text-lg mb-2" style="color: var(--text-primary);">Nombre del Alimento</h4>
+          
+          <div class="form-group mb-3">
+            <label for="selectorQuantityInput" id="selectorQuantityLabel" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Cantidad (g)</label>
+            <input type="number" id="selectorQuantityInput" class="form-input" min="1" max="2000" value="100">
+          </div>
+          
+          <div class="quick-portions-presets mb-3" id="selectorPresetsContainer" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+            <!-- Presets populated by JS (100g, 150g, 200g, 1u, 2u...) -->
+          </div>
+          
+          <!-- Visualizador de macros estimado -->
+          <div class="selector-macros-preview mb-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; background-color: rgba(0,0,0,0.03); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 0.5rem; text-align: center; margin-bottom: 1.25rem;">
+            <div class="smp-item" style="display: flex; flex-direction: column;">
+              <span style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Calorías</span>
+              <span id="previewKcal" class="text-purple" style="font-size: 0.95rem; font-weight: 700;">0 kcal</span>
+            </div>
+            <div class="smp-item" style="display: flex; flex-direction: column;">
+              <span style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Proteínas</span>
+              <span id="previewProtein" class="text-emerald" style="font-size: 0.95rem; font-weight: 700;">0g</span>
+            </div>
+            <div class="smp-item" style="display: flex; flex-direction: column;">
+              <span style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Carbos</span>
+              <span id="previewCarbs" class="text-orange" style="font-size: 0.95rem; font-weight: 700;">0g</span>
+            </div>
+            <div class="smp-item" style="display: flex; flex-direction: column;">
+              <span style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Grasas</span>
+              <span id="previewFats" class="text-pink" style="font-size: 0.95rem; font-weight: 700;">0g</span>
+            </div>
+          </div>
+          
+          <button type="button" id="btnConfirmAddQuickFood" class="btn btn-primary btn-full-width">
+            Agregar al Diario
+          </button>
         </div>
       </div>
 
-      <!-- Content Tab 2: Favorites List -->
+      <!-- Content Tab 2: Custom Preparations List & Form -->
+      <div id="tabContentPreparations" class="modal-tab-content">
+        <div id="preparationsListContainer">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <p class="tab-desc" style="margin-bottom: 0;">Tus recetas y platos combinados guardados:</p>
+            <button type="button" id="btnShowCreatePrepForm" class="btn-timeline-load" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+              <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Crear Receta
+            </button>
+          </div>
+          <div class="quick-foods-grid" id="preparationsGridList">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        
+        <!-- Formulario para crear una nueva preparación (oculto por defecto) -->
+        <div id="createPrepFormContainer" class="hidden" style="padding: 0.5rem 0;">
+          <button type="button" id="btnBackToPrepList" class="btn-timeline-load mb-3" style="display: inline-flex; align-items: center; gap: 0.25rem;">
+            <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Volver a la lista
+          </button>
+          <h4 class="font-bold text-lg mb-3" style="color: var(--text-primary);">Nueva Preparación / Receta</h4>
+          <form id="newPrepForm">
+            <div class="form-group mb-2">
+              <label for="prepName" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Nombre de la Preparación</label>
+              <input type="text" id="prepName" placeholder="Ej: Arroz con Pollo y Palta" class="form-input" required autocomplete="off">
+            </div>
+            <div class="form-row-grid mt-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.75rem;">
+              <div class="form-group">
+                <label for="prepKcal" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Calorías (kcal)</label>
+                <input type="number" id="prepKcal" min="0" max="5000" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label for="prepProtein" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Proteínas (g)</label>
+                <input type="number" id="prepProtein" min="0" max="500" class="form-input" required>
+              </div>
+            </div>
+            <div class="form-row-grid mt-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.75rem;">
+              <div class="form-group">
+                <label for="prepCarbs" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Carbohidratos (g)</label>
+                <input type="number" id="prepCarbs" min="0" max="500" class="form-input" required>
+              </div>
+              <div class="form-group">
+                <label for="prepFats" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Grasas (g)</label>
+                <input type="number" id="prepFats" min="0" max="500" class="form-input" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full-width mt-4" style="margin-top: 1.25rem;">
+              Guardar en Mis Preparaciones
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Content Tab 3: Favorites List -->
       <div id="tabContentFavorites" class="modal-tab-content">
         <p class="tab-desc">Tus comidas frecuentemente guardadas. Haz un toque para agregarlas:</p>
         <div class="quick-foods-grid" id="favoriteFoodsGridList">

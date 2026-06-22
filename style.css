@@ -2943,3 +2943,25 @@ body.auth-required .auth-container {
   }
 }
 
+/* Estilos adicionales para el selector de porción y preparaciones */
+.preset-weight-btn {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.preset-weight-btn:hover,
+.preset-weight-btn.active {
+  background-color: var(--accent-purple);
+  color: white;
+  border-color: var(--accent-purple);
+  transform: translateY(-1px);
+}
+
+

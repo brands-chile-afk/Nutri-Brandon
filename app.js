@@ -17,21 +17,23 @@ const STORAGE_KEYS = {
   DAILY_LOGS: "nutrilife_daily_logs",
   WEIGHT_HISTORY: "nutrilife_weight_history",
   INBODY_HISTORY: "nutrilife_inbody_history",
-  FAVORITES: "nutrilife_favorite_foods"
+  FAVORITES: "nutrilife_favorite_foods",
+  PREPARATIONS: "nutrilife_custom_preparations"
 };
 
 // Alimentos comunes predefinidos (Biblioteca de alimentos rápidos)
 const QUICK_FOODS_LIBRARY = [
-  { nombre: "Pechuga de Pollo a la plancha (150g)", calorias: 247, proteinas: 46, carbohidratos: 0, grasas: 6 },
-  { nombre: "Huevo entero cocido (1 u / 50g)", calorias: 78, proteinas: 6.5, carbohidratos: 0.6, grasas: 5.3 },
-  { nombre: "Avena en hojuelas (50g)", calorias: 195, proteinas: 7, carbohidratos: 33, grasas: 3.5 },
-  { nombre: "Arroz blanco cocido (100g)", calorias: 130, proteinas: 2.7, carbohidratos: 28, grasas: 0.3 },
-  { nombre: "Aguacate Haas (50g)", calorias: 80, proteinas: 1, carbohidratos: 4.3, grasas: 7.3 },
-  { nombre: "Plátano/Banana (1 u mediana)", calorias: 105, proteinas: 1.3, carbohidratos: 27, grasas: 0.3 },
-  { nombre: "Manzana verde (1 u mediana)", calorias: 95, proteinas: 0.5, carbohidratos: 25, grasas: 0.3 },
-  { nombre: "Atún al agua en conserva (100g)", calorias: 116, proteinas: 26, carbohidratos: 0, grasas: 1 },
-  { nombre: "Leche descremada (200ml)", calorias: 70, proteinas: 6.8, carbohidratos: 10, grasas: 0.2 },
-  { nombre: "Almendras crudas (20g / ~15 u)", calorias: 116, proteinas: 4.2, carbohidratos: 4.3, grasas: 10 }
+  { nombre: "Pechuga de Pollo a la plancha", baseCantidad: 100, unidad: "g", calorias: 165, proteinas: 31, carbohidratos: 0, grasas: 3.6 },
+  { nombre: "Huevo entero cocido", baseCantidad: 1, unidad: "u", calorias: 78, proteinas: 6.5, carbohidratos: 0.6, grasas: 5.3 },
+  { nombre: "Avena en hojuelas", baseCantidad: 100, unidad: "g", calorias: 389, proteinas: 16.9, carbohidratos: 66, grasas: 6.9 },
+  { nombre: "Arroz blanco cocido", baseCantidad: 100, unidad: "g", calorias: 130, proteinas: 2.7, carbohidratos: 28, grasas: 0.3 },
+  { nombre: "Papas cocidas", baseCantidad: 100, unidad: "g", calorias: 87, proteinas: 1.9, carbohidratos: 20.1, grasas: 0.1 },
+  { nombre: "Aguacate Haas", baseCantidad: 100, unidad: "g", calorias: 160, proteinas: 2, carbohidratos: 8.5, grasas: 14.7 },
+  { nombre: "Plátano/Banana", baseCantidad: 1, unidad: "u", calorias: 105, proteinas: 1.3, carbohidratos: 27, grasas: 0.3 },
+  { nombre: "Manzana verde", baseCantidad: 1, unidad: "u", calorias: 95, proteinas: 0.5, carbohidratos: 25, grasas: 0.3 },
+  { nombre: "Atún al agua en conserva", baseCantidad: 100, unidad: "g", calorias: 116, proteinas: 26, carbohidratos: 0, grasas: 1 },
+  { nombre: "Leche descremada", baseCantidad: 200, unidad: "ml", calorias: 70, proteinas: 6.8, carbohidratos: 10, grasas: 0.2 },
+  { nombre: "Almendras crudas", baseCantidad: 100, unidad: "g", calorias: 579, proteinas: 21, carbohidratos: 22, grasas: 50 }
 ];
 
 // Estado global en memoria
@@ -49,7 +51,8 @@ let state = {
   dailyLogs: {}, // Clave: YYYY-MM-DD -> { foods: [], waterConsumed: 0 }
   weightHistory: [], // Lista de { date: "YYYY-MM-DD", weight: 75.4 }
   inbodyHistory: [], // Lista de InBody objects
-  favoriteFoods: [] // Lista de comidas favoritas/predeterminadas
+  favoriteFoods: [], // Lista de comidas favoritas/predeterminadas
+  customPreparations: [] // Lista de preparaciones personalizadas
 };
 
 // Generar Datos de Inicio Premium con tus datos reales del CSV de InBody
@@ -103,7 +106,8 @@ function getMockInitialData() {
     dailyLogs: mockDailyLogs,
     weightHistory: weightMock,
     inbodyHistory: inbodyMock,
-    favoriteFoods: []
+    favoriteFoods: [],
+    customPreparations: []
   };
 }
 
@@ -114,14 +118,16 @@ function initDatabase() {
   const cachedWeight = localStorage.getItem(STORAGE_KEYS.WEIGHT_HISTORY);
   const cachedInBody = localStorage.getItem(STORAGE_KEYS.INBODY_HISTORY);
   const cachedFavorites = localStorage.getItem(STORAGE_KEYS.FAVORITES);
+  const cachedPreparations = localStorage.getItem(STORAGE_KEYS.PREPARATIONS);
 
-  if (cachedSettings || cachedLogs || cachedWeight || cachedInBody || cachedFavorites) {
+  if (cachedSettings || cachedLogs || cachedWeight || cachedInBody || cachedFavorites || cachedPreparations) {
     // Cargar datos reales
     if (cachedSettings) state.settings = JSON.parse(cachedSettings);
     if (cachedLogs) state.dailyLogs = JSON.parse(cachedLogs);
     if (cachedWeight) state.weightHistory = JSON.parse(cachedWeight);
     if (cachedInBody) state.inbodyHistory = JSON.parse(cachedInBody);
     if (cachedFavorites) state.favoriteFoods = JSON.parse(cachedFavorites);
+    if (cachedPreparations) state.customPreparations = JSON.parse(cachedPreparations);
   } else {
     // Cargar datos reales como iniciales
     console.log("Inicializando NutriLife con tus datos reales de InBody...");
@@ -166,6 +172,7 @@ function saveStateToLocalStorage() {
   localStorage.setItem(STORAGE_KEYS.WEIGHT_HISTORY, JSON.stringify(state.weightHistory));
   localStorage.setItem(STORAGE_KEYS.INBODY_HISTORY, JSON.stringify(state.inbodyHistory));
   localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(state.favoriteFoods || []));
+  localStorage.setItem(STORAGE_KEYS.PREPARATIONS, JSON.stringify(state.customPreparations || []));
 
   // Sincronizar asíncronamente con la nube si hay inicio de sesión y no estamos ya sincronizando
   if (isFirebaseConnected && firebase.auth().currentUser && !isCloudSyncing) {
@@ -197,6 +204,7 @@ async function saveDataToCloudSync() {
       weightHistory: state.weightHistory,
       inbodyHistory: state.inbodyHistory,
       favoriteFoods: state.favoriteFoods || [],
+      customPreparations: state.customPreparations || [],
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
@@ -419,11 +427,15 @@ function initMealsNavigation() {
   
   // Tabs del modal
   document.getElementById("tabQuickAdd").addEventListener("click", () => switchModalTab("quick"));
+  document.getElementById("tabPreparationsAdd").addEventListener("click", () => switchModalTab("preparations"));
   document.getElementById("tabFavoritesAdd").addEventListener("click", () => switchModalTab("favorites"));
   document.getElementById("tabCustomAdd").addEventListener("click", () => switchModalTab("custom"));
 
   // Formulario personalizado
   document.getElementById("customFoodForm").addEventListener("submit", handleCustomFoodSubmit);
+  
+  // Inicializar lógica de porciones rápidas y preparaciones personalizadas
+  initFoodModalPortionsAndPreparations();
 
   // Iniciar aviso de API Key
   checkGeminiApiKeyWarning();
@@ -582,19 +594,31 @@ function closeFoodModal() {
 
 function switchModalTab(tab) {
   const tabQuick = document.getElementById("tabQuickAdd");
+  const tabPreparations = document.getElementById("tabPreparationsAdd");
   const tabFavorites = document.getElementById("tabFavoritesAdd");
   const tabCustom = document.getElementById("tabCustomAdd");
   const contentQuick = document.getElementById("tabContentQuick");
+  const contentPreparations = document.getElementById("tabContentPreparations");
   const contentFavorites = document.getElementById("tabContentFavorites");
   const contentCustom = document.getElementById("tabContentCustom");
 
   // Reset active classes
-  [tabQuick, tabFavorites, tabCustom].forEach(btn => btn.classList.remove("active"));
-  [contentQuick, contentFavorites, contentCustom].forEach(cnt => cnt.classList.remove("active"));
+  [tabQuick, tabPreparations, tabFavorites, tabCustom].forEach(btn => btn && btn.classList.remove("active"));
+  [contentQuick, contentPreparations, contentFavorites, contentCustom].forEach(cnt => cnt && cnt.classList.remove("active"));
+
+  // Resetear estados internos de los paneles
+  document.getElementById("quickFoodsLibraryContainer").classList.remove("hidden");
+  document.getElementById("quickFoodWeightSelector").classList.add("hidden");
+  document.getElementById("preparationsListContainer").classList.remove("hidden");
+  document.getElementById("createPrepFormContainer").classList.add("hidden");
 
   if (tab === "quick") {
     tabQuick.classList.add("active");
     contentQuick.classList.add("active");
+  } else if (tab === "preparations") {
+    tabPreparations.classList.add("active");
+    contentPreparations.classList.add("active");
+    renderCustomPreparationsList();
   } else if (tab === "favorites") {
     tabFavorites.classList.add("active");
     contentFavorites.classList.add("active");
@@ -605,8 +629,11 @@ function switchModalTab(tab) {
   }
 }
 
+let selectedQuickFood = null;
+
 function renderQuickFoodsList() {
   const grid = document.getElementById("quickFoodsGridList");
+  if (!grid) return;
   grid.innerHTML = "";
   
   QUICK_FOODS_LIBRARY.forEach(food => {
@@ -614,29 +641,229 @@ function renderQuickFoodsList() {
     card.className = "quick-food-card";
     card.type = "button";
     card.innerHTML = `
-      <span class="qf-name">${food.nombre}</span>
-      <span class="qf-kcal">${food.calorias} kcal</span>
+      <span class="qf-name">${food.nombre} (${food.baseCantidad}${food.unidad})</span>
+      <span class="qf-kcal">${Math.round(food.calorias)} kcal</span>
       <span class="qf-macros">P: ${food.proteinas}g | C: ${food.carbohidratos}g | G: ${food.grasas}g</span>
     `;
     
     card.addEventListener("click", () => {
-      const dateStr = getFormattedDateString(mealsActiveDate);
-      const newFood = {
-        id: Date.now() + Math.floor(Math.random() * 100),
-        nombre: food.nombre.split(" (")[0], // Cortar peso para simplificar el nombre
-        calorias: food.calorias,
-        proteinas: food.proteinas,
-        carbohidratos: food.carbohidratos,
-        grasas: food.grasas,
-        categoria: activeModalCategory
-      };
-      
-      addFoodItem(dateStr, newFood);
-      closeFoodModal();
+      openPortionSelector(food);
     });
     
     grid.appendChild(card);
   });
+}
+
+function openPortionSelector(food) {
+  selectedQuickFood = food;
+  
+  document.getElementById("quickFoodsLibraryContainer").classList.add("hidden");
+  document.getElementById("quickFoodWeightSelector").classList.remove("hidden");
+  
+  document.getElementById("selectorFoodName").innerText = food.nombre;
+  
+  const quantityLabel = document.getElementById("selectorQuantityLabel");
+  const quantityInput = document.getElementById("selectorQuantityInput");
+  
+  quantityLabel.innerText = `Cantidad (${food.unidad})`;
+  quantityInput.value = food.baseCantidad;
+  
+  // Rellenar presets rápidos
+  const presetsContainer = document.getElementById("selectorPresetsContainer");
+  presetsContainer.innerHTML = "";
+  
+  const presets = food.unidad === "u" ? [1, 2, 3, 4] : [50, 100, 150, 200, 250, 300];
+  
+  presets.forEach(val => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "preset-weight-btn";
+    btn.innerText = `${val}${food.unidad}`;
+    if (val === food.baseCantidad) btn.classList.add("active");
+    
+    btn.addEventListener("click", () => {
+      presetsContainer.querySelectorAll(".preset-weight-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      quantityInput.value = val;
+      updatePortionPreview();
+    });
+    
+    presetsContainer.appendChild(btn);
+  });
+  
+  updatePortionPreview();
+}
+
+function updatePortionPreview() {
+  if (!selectedQuickFood) return;
+  
+  const quantityInput = document.getElementById("selectorQuantityInput");
+  const qty = parseFloat(quantityInput.value) || 0;
+  
+  const factor = qty / selectedQuickFood.baseCantidad;
+  
+  const kcal = Math.round(selectedQuickFood.calorias * factor);
+  const p = Math.round((selectedQuickFood.proteinas * factor) * 10) / 10;
+  const c = Math.round((selectedQuickFood.carbohidratos * factor) * 10) / 10;
+  const g = Math.round((selectedQuickFood.grasas * factor) * 10) / 10;
+  
+  document.getElementById("previewKcal").innerText = `${kcal} kcal`;
+  document.getElementById("previewProtein").innerText = `${p}g`;
+  document.getElementById("previewCarbs").innerText = `${c}g`;
+  document.getElementById("previewFats").innerText = `${g}g`;
+}
+
+function confirmAddQuickFood() {
+  if (!selectedQuickFood) return;
+  
+  const qtyInput = document.getElementById("selectorQuantityInput");
+  const qty = parseFloat(qtyInput.value) || 0;
+  if (qty <= 0) {
+    alert("Por favor ingresa una cantidad válida mayor a 0.");
+    return;
+  }
+  
+  const factor = qty / selectedQuickFood.baseCantidad;
+  
+  const dateStr = getFormattedDateString(mealsActiveDate);
+  const newFood = {
+    id: Date.now() + Math.floor(Math.random() * 100),
+    nombre: `${selectedQuickFood.nombre} (${qty}${selectedQuickFood.unidad})`,
+    calorias: Math.round(selectedQuickFood.calorias * factor),
+    proteinas: Math.round((selectedQuickFood.proteinas * factor) * 10) / 10,
+    carbohidratos: Math.round((selectedQuickFood.carbohidratos * factor) * 10) / 10,
+    grasas: Math.round((selectedQuickFood.grasas * factor) * 10) / 10,
+    categoria: activeModalCategory
+  };
+  
+  addFoodItem(dateStr, newFood);
+  closeFoodModal();
+}
+
+function initFoodModalPortionsAndPreparations() {
+  // Lógica de vuelta a la lista rápida
+  document.getElementById("btnBackToQuickLibrary").addEventListener("click", () => {
+    document.getElementById("quickFoodWeightSelector").classList.add("hidden");
+    document.getElementById("quickFoodsLibraryContainer").classList.remove("hidden");
+  });
+  
+  // Escucha del input de cantidad
+  const qtyInput = document.getElementById("selectorQuantityInput");
+  qtyInput.addEventListener("input", () => {
+    // Quitar clase active de los presets si cambian manualmente la cantidad
+    document.querySelectorAll(".preset-weight-btn").forEach(btn => btn.classList.remove("active"));
+    updatePortionPreview();
+  });
+  
+  // Botón de confirmar agregar
+  document.getElementById("btnConfirmAddQuickFood").addEventListener("click", confirmAddQuickFood);
+  
+  // --- PREPARACIONES ---
+  // Botón de crear receta/preparación (abre formulario)
+  document.getElementById("btnShowCreatePrepForm").addEventListener("click", () => {
+    document.getElementById("preparationsListContainer").classList.add("hidden");
+    document.getElementById("createPrepFormContainer").classList.remove("hidden");
+    document.getElementById("newPrepForm").reset();
+  });
+  
+  // Botón de volver a la lista de preparaciones
+  document.getElementById("btnBackToPrepList").addEventListener("click", () => {
+    document.getElementById("createPrepFormContainer").classList.add("hidden");
+    document.getElementById("preparationsListContainer").classList.remove("hidden");
+  });
+  
+  // Formulario submit de nueva preparación
+  document.getElementById("newPrepForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    
+    const name = document.getElementById("prepName").value.trim();
+    const kcal = parseFloat(document.getElementById("prepKcal").value) || 0;
+    const p = parseFloat(document.getElementById("prepProtein").value) || 0;
+    const c = parseFloat(document.getElementById("prepCarbs").value) || 0;
+    const g = parseFloat(document.getElementById("prepFats").value) || 0;
+    
+    if (!state.customPreparations) state.customPreparations = [];
+    
+    const newPrep = {
+      id: Date.now(),
+      nombre: name,
+      calorias: kcal,
+      proteinas: p,
+      carbohidratos: c,
+      grasas: g
+    };
+    
+    state.customPreparations.push(newPrep);
+    saveStateToLocalStorage();
+    saveDataToCloudSync();
+    
+    // Volver a la lista
+    document.getElementById("createPrepFormContainer").classList.add("hidden");
+    document.getElementById("preparationsListContainer").classList.remove("hidden");
+    
+    renderCustomPreparationsList();
+  });
+}
+
+function renderCustomPreparationsList() {
+  const grid = document.getElementById("preparationsGridList");
+  if (!grid) return;
+  grid.innerHTML = "";
+  
+  if (!state.customPreparations || state.customPreparations.length === 0) {
+    grid.innerHTML = `<p class="empty-list-placeholder" style="grid-column: 1 / -1; text-align: center; padding: 2rem 1rem; width: 100%;">No tienes preparaciones guardadas aún. Haz clic en "Crear Receta" para guardar tu primer plato combinado.</p>`;
+    return;
+  }
+  
+  state.customPreparations.forEach(prep => {
+    const cardWrapper = document.createElement("div");
+    cardWrapper.className = "favorite-food-card-wrapper";
+    
+    cardWrapper.innerHTML = `
+      <button type="button" class="quick-food-card btn-prep-add-action" style="width: 100%; text-align: left;">
+        <span class="qf-name">${prep.nombre}</span>
+        <span class="qf-kcal">${Math.round(prep.calorias)} kcal</span>
+        <span class="qf-macros">P: ${Math.round(prep.proteinas)}g | C: ${Math.round(prep.carbohidratos)}g | G: ${Math.round(prep.grasas)}g</span>
+      </button>
+      <button type="button" class="btn-favorite-delete" title="Eliminar preparación">
+        <i data-lucide="trash-2"></i>
+      </button>
+    `;
+    
+    cardWrapper.querySelector(".btn-prep-add-action").addEventListener("click", () => {
+      const dateStr = getFormattedDateString(mealsActiveDate);
+      const newFood = {
+        id: Date.now() + Math.floor(Math.random() * 100),
+        nombre: prep.nombre,
+        calorias: prep.calorias,
+        proteinas: prep.proteinas,
+        carbohidratos: prep.carbohidratos,
+        grasas: prep.grasas,
+        categoria: activeModalCategory
+      };
+      addFoodItem(dateStr, newFood);
+      closeFoodModal();
+    });
+    
+    cardWrapper.querySelector(".btn-favorite-delete").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const index = state.customPreparations.findIndex(p => p.id === prep.id);
+      if (index > -1) {
+        if (confirm(`¿Estás seguro de que deseas eliminar la preparación "${prep.nombre}"?`)) {
+          state.customPreparations.splice(index, 1);
+          saveStateToLocalStorage();
+          saveDataToCloudSync();
+          renderCustomPreparationsList();
+        }
+      }
+    });
+    
+    grid.appendChild(cardWrapper);
+  });
+  
+  if (typeof lucide !== "undefined") {
+    lucide.createIcons();
+  }
 }
 
 function toggleFavoriteFood(food) {
@@ -1972,6 +2199,8 @@ function initAuthUiEvents() {
         dailyLogs: state.dailyLogs,
         weightHistory: state.weightHistory,
         inbodyHistory: state.inbodyHistory,
+        favoriteFoods: state.favoriteFoods || [],
+        customPreparations: state.customPreparations || [],
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       
@@ -2044,6 +2273,7 @@ function startRealtimeCloudSync(uid) {
       if (cloudData.weightHistory) state.weightHistory = cloudData.weightHistory;
       if (cloudData.inbodyHistory) state.inbodyHistory = cloudData.inbodyHistory;
       if (cloudData.favoriteFoods) state.favoriteFoods = cloudData.favoriteFoods;
+      if (cloudData.customPreparations) state.customPreparations = cloudData.customPreparations;
 
       // Guardar localmente
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
@@ -2051,6 +2281,7 @@ function startRealtimeCloudSync(uid) {
       localStorage.setItem(STORAGE_KEYS.WEIGHT_HISTORY, JSON.stringify(state.weightHistory));
       localStorage.setItem(STORAGE_KEYS.INBODY_HISTORY, JSON.stringify(state.inbodyHistory));
       localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(state.favoriteFoods || []));
+      localStorage.setItem(STORAGE_KEYS.PREPARATIONS, JSON.stringify(state.customPreparations || []));
 
       // Actualizar visualizaciones
       if (activeView === "dashboard-view") renderDashboard();
@@ -2069,6 +2300,7 @@ function startRealtimeCloudSync(uid) {
         weightHistory: state.weightHistory,
         inbodyHistory: state.inbodyHistory,
         favoriteFoods: state.favoriteFoods || [],
+        customPreparations: state.customPreparations || [],
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }
