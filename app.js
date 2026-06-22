@@ -1102,7 +1102,7 @@ async function parseMealWithGemini(text) {
     throw new Error("API_KEY_MISSING");
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
   const payload = {
     contents: [
@@ -1114,7 +1114,22 @@ async function parseMealWithGemini(text) {
       }
     ],
     generationConfig: {
-      responseMimeType: "application/json"
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          properties: {
+            nombre: { type: "STRING" },
+            calorias: { type: "INTEGER" },
+            proteinas: { type: "NUMBER" },
+            carbohidratos: { type: "NUMBER" },
+            grasas: { type: "NUMBER" },
+            categoria: { type: "STRING", enum: ["Desayuno", "Almuerzo", "Cena", "Snack"] }
+          },
+          required: ["nombre", "calorias", "proteinas", "carbohidratos", "grasas", "categoria"]
+        }
+      }
     }
   };
 
@@ -1139,7 +1154,7 @@ async function parseMealWithGemini(text) {
   }
   
   const parsedData = JSON.parse(jsonStringResult);
-  return parsedData;
+  return Array.isArray(parsedData) ? parsedData : [parsedData];
 }
 
 async function handleAITextSubmit() {
@@ -2699,7 +2714,7 @@ async function generateAiContent(type) {
 
 async function callGeminiAPI(prompt) {
   const apiKey = state.settings.geminiApiKey;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
   const payload = {
     contents: [
